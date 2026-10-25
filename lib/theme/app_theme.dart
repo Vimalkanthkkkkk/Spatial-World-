@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
+
 import 'app_colors.dart';
 import 'app_typography.dart';
 
 abstract final class AppTheme {
-
   static ThemeData get light {
-
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: AppColors.primary,
-      onPrimary: Colors.white,
-      secondary: AppColors.secondary,
-      surface: AppColors.surface,
-      onSurface: AppColors.textPrimary,
-      error: AppColors.error,
-    );
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: AppColors.primary,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: AppColors.primary,
+          onPrimary: Colors.white,
+          secondary: AppColors.secondary,
+          surface: AppColors.surface,
+          onSurface: AppColors.textPrimary,
+          error: AppColors.error,
+        );
 
     return ThemeData(
       useMaterial3: true,
@@ -52,9 +52,7 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colorScheme.surface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,
@@ -64,25 +62,23 @@ abstract final class AppTheme {
       cardTheme: CardThemeData(
         color: colorScheme.surface,
         elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
-
   }
 
   static ThemeData get dark {
-
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      brightness: Brightness.dark,
-    ).copyWith(
-      primary: AppColors.primary,
-      onPrimary: Colors.white,
-      secondary: AppColors.secondary,
-      error: AppColors.error,
-    );
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: const Color.fromARGB(255, 202, 199, 208),
+          brightness: Brightness.dark,
+          surface: Color.fromARGB(255, 199, 200, 197),
+        ).copyWith(
+          primary: const Color.fromARGB(255, 226, 226, 229),
+          onPrimary: Colors.white,
+          secondary: const Color.fromARGB(255, 222, 219, 226),
+          error: AppColors.error,
+        );
 
     return ThemeData(
       useMaterial3: true,
@@ -91,15 +87,9 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: const Color(0xFF121212),
 
       textTheme: TextTheme(
-        headlineLarge: AppTypography.headingLarge.copyWith(
-          color: colorScheme.onSurface,
-        ),
-        headlineMedium: AppTypography.headingMedium.copyWith(
-          color: colorScheme.onSurface,
-        ),
-        bodyMedium: AppTypography.body.copyWith(
-          color: colorScheme.onSurface,
-        ),
+        headlineLarge: AppTypography.headingLarge,
+        headlineMedium: AppTypography.headingMedium,
+        bodyMedium: AppTypography.body.copyWith(color: colorScheme.onSurface),
         bodySmall: AppTypography.caption.copyWith(
           color: colorScheme.onSurfaceVariant,
         ),
@@ -110,6 +100,7 @@ abstract final class AppTheme {
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
         centerTitle: false,
+        titleTextStyle: AppTypography.headingLarge
       ),
 
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -126,9 +117,7 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,
@@ -138,12 +127,8 @@ abstract final class AppTheme {
       cardTheme: CardThemeData(
         color: colorScheme.surfaceContainerLow,
         elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
-  
   }
-
 }
