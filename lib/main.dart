@@ -31,6 +31,9 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
+  Offset? _pointerDownPosition;
+  Offset _delta = Offset.zero;
+
 
   void _incrementCounter() {
     setState(() {
@@ -38,28 +41,52 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  void _handlePointerDown(PointerDownEvent event) {
+    _pointerDownPosition = event.localPosition;
+    _delta = Offset.zero;
+    debugPrint('Pointer DOWN: ${event.localPosition}');
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (_pointerDownPosition == null) return;
+    _delta = event.localPosition - _pointerDownPosition!;
+    debugPrint('Delta: $_delta');
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    debugPrint('Pointer UP: ${event.localPosition}');
+    debugPrint('Final delta: $_delta');
+    _pointerDownPosition = null;
+  }
+
+
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+    final screenSize = MediaQuery.of(context).size;
+    return Listener(
+      onPointerDown: _handlePointerDown,
+      onPointerMove: _handlePointerMove,
+      onPointerUp: _handlePointerUp,
+      child: Scaffold(
+        appBar: AppBar(title: Text(widget.title)),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: .center,
+            children: [
+              const Text('You have pushed the button this many times:'),
+              Text(
+                '$_counter',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ],
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _incrementCounter,
+          tooltip: 'Increment',
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }
