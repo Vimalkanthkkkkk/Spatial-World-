@@ -31,9 +31,8 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
-  Offset? _pointerDownPosition;
   Offset _delta = Offset.zero;
-
+  Offset? _lastPointerPosition;
 
   void _incrementCounter() {
     setState(() {
@@ -42,23 +41,19 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
-    _pointerDownPosition = event.localPosition;
-    _delta = Offset.zero;
-    debugPrint('Pointer DOWN: ${event.localPosition}');
+    _lastPointerPosition = event.localPosition;
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
-    if (_pointerDownPosition == null) return;
-    _delta = event.localPosition - _pointerDownPosition!;
+    if (_lastPointerPosition == null) return;
+    _delta += event.localPosition - _lastPointerPosition!;
+    _lastPointerPosition = event.localPosition;
     debugPrint('Delta: $_delta');
   }
 
   void _handlePointerUp(PointerUpEvent event) {
-    debugPrint('Pointer UP: ${event.localPosition}');
-    debugPrint('Final delta: $_delta');
-    _pointerDownPosition = null;
+    _lastPointerPosition = null;
   }
-
 
 
   @override
