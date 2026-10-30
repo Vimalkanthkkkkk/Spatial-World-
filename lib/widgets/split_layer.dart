@@ -48,7 +48,7 @@ class Controller {
   Map<String, Paint> paintObj = {};
   final SceneVersion scene = SceneVersion();
   CameraNotifier camera = CameraNotifier();
-  List<Item> renderItems(Size screen, Offset delta) => camera
+  List<Item> renderItems(ui.Size screen, Offset delta) => camera
       .moveto(screen, delta)
       .map((index) => items[index])
       .whereType<Item>()
@@ -94,7 +94,7 @@ class CameraNotifier with ChangeNotifier {
     return (originX: originX, originY: originY, index: (row, column));
   }
 
-  List<(int, int)> moveto(Size screen, Offset delta) {
+  List<(int, int)> moveto(ui.Size screen, Offset delta) {
     final double screenWidth = screen.width + boundary;
     final double screenHeight = screen.height + boundary;
     final originX = topLeft[0] + delta.dx;
@@ -152,7 +152,7 @@ class CardPainter extends CustomPainter {
         final paint = Paint()
           ..color = item.style.color
           ..style = PaintingStyle.fill;
-        paintCache.putIfAbsent(item.id,() => paint);
+        paintCache.putIfAbsent(item.id, () => paint);
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTWH(
@@ -171,6 +171,6 @@ class CardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    throw UnimplementedError();
+    return true;
   }
 }

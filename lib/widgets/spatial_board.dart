@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
 
+import 'dart:ui' as ui;
+
 class SpatialBoard extends StatefulWidget {
   const SpatialBoard({super.key});
 
@@ -47,7 +49,7 @@ class _SpatialBoardState extends State<SpatialBoard> {
                     onPressed: () {
                       final text = _textController.text.trim();
                       if (text.isEmpty) return;
-                      
+                      controller.addCard(_delta, text);
                       Navigator.pop(context);
                     },
                     child: const Text('Add'),
@@ -78,12 +80,25 @@ class _SpatialBoardState extends State<SpatialBoard> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
+    ui.Size screenSize = MediaQuery.of(context).size;
     return Listener(
       onPointerDown: _handlePointerDown,
       onPointerMove: _handlePointerMove,
       onPointerUp: _handlePointerUp,
       child: Scaffold(
+        body: ListenableBuilder(
+          listenable: controller.camera,
+          builder: (BuildContext context, Widget? child) {
+            List<Item> cards = controller.renderItems(screenSize, _delta);
+            return CustomPaint(
+              size: screenSize,
+              painter: CardPainter(
+                items: cards,
+                paintCache: controller.paintObj,
+              ),
+            );
+          },
+        ),
         floatingActionButton: FloatingActionButton(
           onPressed: _showAddDialog,
           tooltip: 'Add',
