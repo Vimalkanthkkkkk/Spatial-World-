@@ -17,8 +17,6 @@ class _SpatialBoardState extends State<SpatialBoard> {
   Offset? _lastPointerPosition;
   Controller controller = Controller();
   final ValueNotifier<Offset> _cameraOffset = ValueNotifier(Offset.zero);
-
-
   final TextEditingController _textController = TextEditingController();
 
   void _showAddDialog() {
@@ -92,21 +90,17 @@ class _SpatialBoardState extends State<SpatialBoard> {
         body:ValueListenableBuilder<Offset>(
           valueListenable: _cameraOffset,
           builder: (context, offset, child) {
+            final List<Item> cards = controller.renderItems(screenSize, offset);
+            debugPrint('Cards passed: ${cards.length}');
             return Transform.translate(
               offset: offset,
-              child: ListenableBuilder(
-                listenable: controller.camera,
-                builder: (context, child) {
-                  final List<Item> cards = controller.renderItems(screenSize, offset);
-                  return CustomPaint(
-                    size: screenSize,
-                    painter: CardPainter(
-                      items: cards,
-                      paintCache: controller.paintObj,
-                    ),
-                  );
-                },
-              ),
+              child: CustomPaint(
+                size: screenSize,
+                painter: CardPainter(
+                  items: cards,
+                  paintCache: controller.paintObj,
+                ),
+              )
             );
           },
         ) ,

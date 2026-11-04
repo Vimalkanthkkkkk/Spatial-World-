@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 import 'dart:collection';
 
 import 'package:flutter/widgets.dart';
-
+import 'package:flutter/foundation.dart';
 // ignore: slash_for_doc_comments
 /*
  Item (base fields)
@@ -110,7 +110,6 @@ class CameraNotifier with ChangeNotifier {
         visibleItemsIndex.add((j, i));
       }
     }
-    notifyListeners();
     return visibleItemsIndex;
   }
 }
@@ -131,6 +130,7 @@ class CardPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, ui.Size size) {
+    debugPrint('Painter executed: ${items.length}');
     for (var item in items) {
       final paint = paintCache[item.id];
       if (paint != null) {
@@ -173,7 +173,8 @@ class CardPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(covariant CardPainter oldDelegate) {
+    debugPrint('CardPainter paint called');
+    return !listEquals(items, oldDelegate.items);
   }
 }
