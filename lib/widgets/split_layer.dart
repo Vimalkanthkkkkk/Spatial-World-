@@ -64,7 +64,7 @@ class Controller {
       zOrder: 10,
       parentId: 10,
       style: (
-        color: Color.fromARGB(0, 15, 15, 159),
+        color: ui.Color.fromARGB(247, 23, 23, 223),
         radius: Radius.circular(10),
       ),
       content: (text: content, img: null),
@@ -84,10 +84,11 @@ class CameraNotifier with ChangeNotifier {
   final List<int> topLeft = [-100, -100];
   final int cellSize = 200;
   final int boundary = 200;
+  final int offset = 50;
 
   Addresult addItem(Offset delta) {
-    final originX = (topLeft[0] + delta.dx) + boundary;
-    final originY = (topLeft[1] + delta.dy) + boundary;
+    final originX = (topLeft[0] - delta.dx) + boundary;
+    final originY = (topLeft[1] - delta.dy) + boundary;
     final column = (originX / cellSize).floor();
     final row = (originY / cellSize).floor();
     notifyListeners();
@@ -95,14 +96,14 @@ class CameraNotifier with ChangeNotifier {
   }
 
   List<(int, int)> moveto(ui.Size screen, Offset delta) {
-    final double screenWidth = screen.width + boundary;
-    final double screenHeight = screen.height + boundary;
-    final originX = topLeft[0] + delta.dx;
-    final originY = topLeft[1] + delta.dy;
-    final colStart = ((-boundary - originX) / cellSize).floor();
-    final rowStart = ((-boundary - originY) / cellSize).floor();
-    final colEnd = ((screenWidth - originX) / cellSize).floor();
-    final rowEnd = ((screenHeight - originY) / cellSize).floor();
+    final double screenWidth = (screen.width + boundary) - delta.dx;
+    final double screenHeight = (screen.height + boundary) - delta.dy;
+    final originX = topLeft[0] - delta.dx;
+    final originY = topLeft[1] - delta.dy;
+    final colStart = ((originX + offset) / cellSize).floor();
+    final rowStart = ((originY + offset) / cellSize).floor();
+    final colEnd = ((screenWidth ) / cellSize).floor();
+    final rowEnd = ((screenHeight ) / cellSize).floor();
     List<(int, int)> visibleItemsIndex = [];
     for (var i = colStart; i < colEnd; i++) {
       for (var j = rowStart; j < rowEnd; j++) {
@@ -136,6 +137,7 @@ class CardPainter extends CustomPainter {
         final paint = paintCache[item.id]
           ?..color = item.style.color
           ..style = PaintingStyle.fill;
+        debugPrint("Drawing rectangle from if statement !!!!!!!!!");
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTWH(
@@ -153,6 +155,7 @@ class CardPainter extends CustomPainter {
           ..color = item.style.color
           ..style = PaintingStyle.fill;
         paintCache.putIfAbsent(item.id, () => paint);
+        debugPrint("Drawing rectangle");
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTWH(

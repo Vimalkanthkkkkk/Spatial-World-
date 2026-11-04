@@ -16,6 +16,8 @@ class _SpatialBoardState extends State<SpatialBoard> {
   Offset _delta = Offset.zero;
   Offset? _lastPointerPosition;
   Controller controller = Controller();
+  final ValueNotifier<Offset> _cameraOffset = ValueNotifier(Offset.zero);
+
 
   final TextEditingController _textController = TextEditingController();
 
@@ -70,6 +72,7 @@ class _SpatialBoardState extends State<SpatialBoard> {
   void _handlePointerMove(PointerMoveEvent event) {
     if (_lastPointerPosition == null) return;
     _delta += event.localPosition - _lastPointerPosition!;
+    _cameraOffset.value += event.localPosition - _lastPointerPosition!;
     _lastPointerPosition = event.localPosition;
     debugPrint('Delta: $_delta');
   }
@@ -86,19 +89,27 @@ class _SpatialBoardState extends State<SpatialBoard> {
       onPointerMove: _handlePointerMove,
       onPointerUp: _handlePointerUp,
       child: Scaffold(
-        body: ListenableBuilder(
-          listenable: controller.camera,
-          builder: (BuildContext context, Widget? child) {
-            List<Item> cards = controller.renderItems(screenSize, _delta);
-            return CustomPaint(
-              size: screenSize,
-              painter: CardPainter(
-                items: cards,
-                paintCache: controller.paintObj,
+        body:ValueListenableBuilder<Offset>(
+          valueListenable: _cameraOffset,
+          builder: (context, offset, child) {
+            return Transform.translate(
+              offset: offset,
+              child: ListenableBuilder(
+                listenable: controller.camera,
+                builder: (context, child) {
+                  final List<Item> cards = controller.renderItems(screenSize, offset);
+                  return CustomPaint(
+                    size: screenSize,
+                    painter: CardPainter(
+                      items: cards,
+                      paintCache: controller.paintObj,
+                    ),
+                  );
+                },
               ),
             );
           },
-        ),
+        ) ,
         floatingActionButton: FloatingActionButton(
           onPressed: _showAddDialog,
           tooltip: 'Add',
