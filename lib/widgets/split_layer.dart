@@ -1,28 +1,11 @@
-import 'dart:ui' as ui;
 import 'dart:collection';
+import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter/foundation.dart';
-// ignore: slash_for_doc_comments
-/*
- Item (base fields)
-  Unique stable id (never an index)
-  Type (card, text, image, group, timeline)
-  Position (top-left in world)
-  Size
-  Z-order (stable integer, unique ordering)
-  Parent group id (optional)
-  Style reference
-  Content reference (text string, image asset key)
-  Version or modified time
- */
 
 typedef Content = ({String? text, Image? img});
-
 typedef Style = ({Color color, Radius radius});
-
 typedef Position = ({double x, double y});
-
 typedef Size = ({double width, double height});
 
 typedef Item = ({
@@ -37,144 +20,149 @@ typedef Item = ({
   int version,
 });
 
-typedef Addresult = ({double originX, double originY, (int, int) index});
-
-typedef ItemsMap = HashMap<(int, int), Item>;
-
 class Controller {
-  ItemsMap items = HashMap();
-  late String heldId;
-  Map<String, TextPainter> textCache = {};
-  Map<String, Paint> paintObj = {};
-  final SceneVersion scene = SceneVersion();
-  CameraNotifier camera = CameraNotifier();
-  List<Item> renderItems(ui.Size screen, Offset delta) => camera
-      .moveto(screen, delta)
-      .map((index) => items[index])
-      .whereType<Item>()
-      .toList();
+  static const int cellSize = 200;
+  final Map<(int, int), List<Item>> grid = HashMap();
+  final ValueNotifier<Offset> camera = ValueNotifier(Offset.zero);
+  final ValueNotifier<int> scene = ValueNotifier(0);
+  late final Listenable repaint = Listenable.merge([camera, scene]);
+  final Paint fill = Paint()..style = PaintingStyle.fill;
+  final Map<String, ({int version, TextPainter painter})> _text = {};
 
-  Addresult addCard(Offset delta, String content) {
-    Addresult addeditem = camera.addItem(delta);
-    Item newItem = (
-      id: 'item_${addeditem.index.$1}_${addeditem.index.$2}',
-      type: "CARD",
-      position: (x: addeditem.originX, y: addeditem.originY),
+  double _maxExtent = 0; 
+  int _nextId = 0;
+
+  (int, int, int, int)? _lastRange;
+  int _lastScene = -1;
+  List<Item> _visible = const [];
+
+  void panBy(Offset delta) => camera.value += delta;
+
+  (int, int) _cellOf(double x, double y) =>
+      ((y / cellSize).floor(), (x / cellSize).floor());
+
+  Item addCard(Offset screenPoint, String text) {
+    final world = screenPoint - camera.value;
+    final id = _nextId++;
+    final Item item = (
+      id: 'item_$id',
+      type: 'CARD',
+      position: (x: world.dx, y: world.dy),
       size: (width: 100, height: 100),
-      zOrder: 10,
-      parentId: 10,
+      zOrder: id,
+      parentId: 0,
       style: (
-        color: ui.Color.fromARGB(247, 23, 23, 223),
-        radius: Radius.circular(10),
+        color: const Color.fromARGB(247, 23, 23, 223),
+        radius: const Radius.circular(10),
       ),
-      content: (text: content, img: null),
+      content: (text: text, img: null),
       version: 1,
     );
-    items.putIfAbsent(addeditem.index, () => newItem);
-    return addeditem;
+    grid.putIfAbsent(_cellOf(world.dx, world.dy), () => []).add(item);
+    if (item.size.width > _maxExtent) _maxExtent = item.size.width;
+    if (item.size.height > _maxExtent) _maxExtent = item.size.height;
+    scene.value++;
+    return item;
   }
 
-  Item? removecard((int, int) index) {
-    final removed = items.remove(index);
-    return removed;
-  }
-}
-
-class CameraNotifier with ChangeNotifier {
-  final List<int> topLeft = [-100, -100];
-  final int cellSize = 200;
-  final int boundary = 200;
-  final int offset = 50;
-
-  Addresult addItem(Offset delta) {
-    final originX = (topLeft[0] - delta.dx) + boundary;
-    final originY = (topLeft[1] - delta.dy) + boundary;
-    final column = (originX / cellSize).floor();
-    final row = (originY / cellSize).floor();
-    notifyListeners();
-    return (originX: originX, originY: originY, index: (row, column));
+  void removeCard(Item item) {
+    final key = _cellOf(item.position.x, item.position.y);
+    final cell = grid[key];
+    if (cell == null) return;
+    cell.removeWhere((i) => i.id == item.id);
+    if (cell.isEmpty) grid.remove(key);
+    _text.remove(item.id)?.painter.dispose();
+    scene.value++;
   }
 
-  List<(int, int)> moveto(ui.Size screen, Offset delta) {
-    final double screenWidth = (screen.width + boundary) - delta.dx;
-    final double screenHeight = (screen.height + boundary) - delta.dy;
-    final originX = topLeft[0] - delta.dx;
-    final originY = topLeft[1] - delta.dy;
-    final colStart = ((originX + offset) / cellSize).floor();
-    final rowStart = ((originY + offset) / cellSize).floor();
-    final colEnd = ((screenWidth ) / cellSize).floor();
-    final rowEnd = ((screenHeight ) / cellSize).floor();
-    List<(int, int)> visibleItemsIndex = [];
-    for (var i = colStart; i < colEnd; i++) {
-      for (var j = rowStart; j < rowEnd; j++) {
-        visibleItemsIndex.add((j, i));
+  List<Item> visibleItems(ui.Size screen) {
+    final pan = camera.value;
+    final left = -pan.dx - _maxExtent;
+    final top = -pan.dy - _maxExtent;
+    final right = -pan.dx + screen.width;
+    final bottom = -pan.dy + screen.height;
+    final c0 = (left / cellSize).floor();
+    final c1 = (right / cellSize).floor();
+    final r0 = (top / cellSize).floor();
+    final r1 = (bottom / cellSize).floor();
+    final range = (c0, c1, r0, r1);
+    if (range == _lastRange && _lastScene == scene.value) return _visible;
+    final out = <Item>[];
+    for (var r = r0; r <= r1; r++) {
+      for (var c = c0; c <= c1; c++) {
+        final cell = grid[(r, c)];
+        if (cell != null) out.addAll(cell);
       }
     }
-    return visibleItemsIndex;
+    out.sort((a, b) => a.zOrder.compareTo(b.zOrder));
+    _lastRange = range;
+    _lastScene = scene.value;
+    return _visible = out;
   }
-}
 
-class SceneVersion {
-  final ValueNotifier<int> sceneVersion = ValueNotifier<int>(0);
+  TextPainter? textFor(Item item) {
+    final text = item.content.text;
+    if (text == null || text.isEmpty) return null;
 
-  void incrementVersion() {
-    sceneVersion.value++;
+    final cached = _text[item.id];
+    if (cached != null && cached.version == item.version) {
+      return cached.painter;
+    }
+    cached?.painter.dispose();
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 14),
+      ),
+      textDirection: ui.TextDirection.ltr,
+      maxLines: 4,
+      ellipsis: '…',
+    )..layout(maxWidth: item.size.width - 16);
+    _text[item.id] = (version: item.version, painter: painter);
+    return painter;
+  }
+
+  void dispose() {
+    for (final entry in _text.values) {
+      entry.painter.dispose();
+    }
+    _text.clear();
+    camera.dispose();
+    scene.dispose();
   }
 }
 
 class CardPainter extends CustomPainter {
-  final List<Item> items;
-  final Map<String, Paint> paintCache;
-
-  CardPainter({required this.items, required this.paintCache});
+  CardPainter(this.controller) : super(repaint: controller.repaint);
+  final Controller controller;
 
   @override
   void paint(Canvas canvas, ui.Size size) {
-    debugPrint('Painter executed: ${items.length}');
-    for (var item in items) {
-      final paint = paintCache[item.id];
-      if (paint != null) {
-        final paint = paintCache[item.id]
-          ?..color = item.style.color
-          ..style = PaintingStyle.fill;
-        debugPrint("Drawing rectangle from if statement !!!!!!!!!");
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(
-              item.position.x,
-              item.position.y,
-              item.size.width,
-              item.size.height,
-            ),
-            item.style.radius,
-          ),
-          paint!,
-        );
-      } else {
-        final paint = Paint()
-          ..color = item.style.color
-          ..style = PaintingStyle.fill;
-        paintCache.putIfAbsent(item.id, () => paint);
-        debugPrint("Drawing rectangle");
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(
-              item.position.x,
-              item.position.y,
-              item.size.width,
-              item.size.height,
-            ),
-            item.style.radius,
-          ),
-          paint,
-        );
-      }
+    final pan = controller.camera.value;
+    final viewport = Rect.fromLTWH(-pan.dx, -pan.dy, size.width, size.height);
+    final items = controller.visibleItems(size);
+    final fill = controller.fill;
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.translate(pan.dx, pan.dy);
+
+    for (final item in items) {
+      final rect = Rect.fromLTWH(
+        item.position.x,
+        item.position.y,
+        item.size.width,
+        item.size.height,
+      );
+      if (!viewport.overlaps(rect)) continue; 
+      fill.color = item.style.color;
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, item.style.radius), fill);
+      controller.textFor(item)?.paint(canvas, rect.topLeft + const Offset(8, 8));
     }
+
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant CardPainter oldDelegate) {
-    debugPrint('CardPainter paint called');
-    return !listEquals(items, oldDelegate.items);
-  }
+  bool shouldRepaint(CardPainter oldDelegate) =>
+      oldDelegate.controller != controller;
 }

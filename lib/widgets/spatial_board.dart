@@ -1,23 +1,25 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
-
-import 'dart:ui' as ui;
 
 class SpatialBoard extends StatefulWidget {
   const SpatialBoard({super.key});
 
   @override
-  State<StatefulWidget> createState() {
-    return _SpatialBoardState();
-  }
+  State<SpatialBoard> createState() => _SpatialBoardState();
 }
 
 class _SpatialBoardState extends State<SpatialBoard> {
-  Offset _delta = Offset.zero;
-  Offset? _lastPointerPosition;
-  Controller controller = Controller();
-  final ValueNotifier<Offset> _cameraOffset = ValueNotifier(Offset.zero);
+  final Controller controller = Controller();
   final TextEditingController _textController = TextEditingController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    _textController.dispose();
+    super.dispose();
+  }
 
   void _showAddDialog() {
     _textController.clear();
@@ -49,7 +51,7 @@ class _SpatialBoardState extends State<SpatialBoard> {
                     onPressed: () {
                       final text = _textController.text.trim();
                       if (text.isEmpty) return;
-                      controller.addCard(_delta, text);
+                      controller.addCard(const Offset(100, 100), text);
                       Navigator.pop(context);
                     },
                     child: const Text('Add'),
@@ -63,47 +65,19 @@ class _SpatialBoardState extends State<SpatialBoard> {
     );
   }
 
-  void _handlePointerDown(PointerDownEvent event) {
-    _lastPointerPosition = event.localPosition;
-  }
-
-  void _handlePointerMove(PointerMoveEvent event) {
-    if (_lastPointerPosition == null) return;
-    _delta += event.localPosition - _lastPointerPosition!;
-    _cameraOffset.value += event.localPosition - _lastPointerPosition!;
-    _lastPointerPosition = event.localPosition;
-    debugPrint('Delta: $_delta');
-  }
-
-  void _handlePointerUp(PointerUpEvent event) {
-    _lastPointerPosition = null;
-  }
-
   @override
   Widget build(BuildContext context) {
-    ui.Size screenSize = MediaQuery.of(context).size;
     return Listener(
-      onPointerDown: _handlePointerDown,
-      onPointerMove: _handlePointerMove,
-      onPointerUp: _handlePointerUp,
+      behavior: HitTestBehavior.opaque,
+      onPointerMove: (event) => controller.panBy(event.delta),
       child: Scaffold(
-        body:ValueListenableBuilder<Offset>(
-          valueListenable: _cameraOffset,
-          builder: (context, offset, child) {
-            final List<Item> cards = controller.renderItems(screenSize, offset);
-            debugPrint('Cards passed: ${cards.length}');
-            return Transform.translate(
-              offset: offset,
-              child: CustomPaint(
-                size: screenSize,
-                painter: CardPainter(
-                  items: cards,
-                  paintCache: controller.paintObj,
-                ),
-              )
-            );
-          },
-        ) ,
+        resizeToAvoidBottomInset: false, 
+        body: RepaintBoundary(
+          child: CustomPaint(
+            size: ui.Size.infinite,
+            painter: CardPainter(controller),
+          ),
+        ),
         floatingActionButton: FloatingActionButton(
           onPressed: _showAddDialog,
           tooltip: 'Add',
