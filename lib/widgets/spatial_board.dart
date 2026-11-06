@@ -1,5 +1,5 @@
 import 'dart:ui' as ui;
-
+import 'package:flutter/gestures.dart'; 
 import 'package:flutter/material.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
 
@@ -13,12 +13,41 @@ class SpatialBoard extends StatefulWidget {
 class _SpatialBoardState extends State<SpatialBoard> {
   final Controller controller = Controller();
   final TextEditingController _textController = TextEditingController();
+  int? _panPointer;
 
   @override
   void dispose() {
     controller.dispose();
     _textController.dispose();
     super.dispose();
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    final kind = event.kind;
+    final canPan = kind == PointerDeviceKind.touch ||
+        kind == PointerDeviceKind.stylus ||
+        kind == PointerDeviceKind.invertedStylus;
+    if (!canPan) return;
+    _panPointer ??= event.pointer;
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (event.pointer != _panPointer) return;
+    controller.panBy(event.delta);
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    if (event.pointer == _panPointer) _panPointer = null;
+  }
+
+  void _onPanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    controller.panBy(event.panDelta);
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent) {
+      controller.panBy(-event.scrollDelta);
+    }
   }
 
   void _showAddDialog() {
@@ -69,9 +98,14 @@ class _SpatialBoardState extends State<SpatialBoard> {
   Widget build(BuildContext context) {
     return Listener(
       behavior: HitTestBehavior.opaque,
-      onPointerMove: (event) => controller.panBy(event.delta),
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerEnd,
+      onPointerCancel: _onPointerEnd,
+      onPointerPanZoomUpdate: _onPanZoomUpdate,
+      onPointerSignal: _onPointerSignal,
       child: Scaffold(
-        resizeToAvoidBottomInset: false, 
+        resizeToAvoidBottomInset: false,
         body: RepaintBoundary(
           child: CustomPaint(
             size: ui.Size.infinite,
