@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'dart:ui' as ui;
-
 import 'package:flutter/widgets.dart';
 
 typedef Content = ({String? text, Image? img});
@@ -29,17 +28,16 @@ class Controller {
   final Paint fill = Paint()..style = PaintingStyle.fill;
   final Map<String, ({int version, TextPainter painter})> _text = {};
 
-  double _maxExtent = 0; 
+  double _maxExtent = 0;
   int _nextId = 0;
-
+  String heldItem = '';
   (int, int, int, int)? _lastRange;
   int _lastScene = -1;
   List<Item> _visible = const [];
 
-  void panBy(Offset delta) => camera.value += delta;
+  void panBy(Offset delta) => camera.value += delta * 0.5;
 
-  (int, int) _cellOf(double x, double y) =>
-      ((y / cellSize).floor(), (x / cellSize).floor());
+  (int, int) _cellOf(double x, double y) => ((y / cellSize).floor(), (x / cellSize).floor());
 
   Item addCard(Offset screenPoint, String text) {
     final world = screenPoint - camera.value;
@@ -153,10 +151,12 @@ class CardPainter extends CustomPainter {
         item.size.width,
         item.size.height,
       );
-      if (!viewport.overlaps(rect)) continue; 
+      if (!viewport.overlaps(rect)) continue;
       fill.color = item.style.color;
       canvas.drawRRect(RRect.fromRectAndRadius(rect, item.style.radius), fill);
-      controller.textFor(item)?.paint(canvas, rect.topLeft + const Offset(8, 8));
+      controller
+          .textFor(item)
+          ?.paint(canvas, rect.topLeft + const Offset(8, 8));
     }
 
     canvas.restore();
@@ -165,4 +165,14 @@ class CardPainter extends CustomPainter {
   @override
   bool shouldRepaint(CardPainter oldDelegate) =>
       oldDelegate.controller != controller;
+}
+
+class DynamicPainter extends CustomPainter {
+  @override
+  void paint(ui.Canvas canvas, ui.Size size) {}
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    throw UnimplementedError();
+  }
 }

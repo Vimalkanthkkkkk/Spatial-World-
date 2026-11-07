@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
-import 'package:flutter/gestures.dart'; 
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
 
@@ -24,7 +25,8 @@ class _SpatialBoardState extends State<SpatialBoard> {
 
   void _onPointerDown(PointerDownEvent event) {
     final kind = event.kind;
-    final canPan = kind == PointerDeviceKind.touch ||
+    final canPan =
+        kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||
         kind == PointerDeviceKind.invertedStylus;
     if (!canPan) return;
@@ -56,16 +58,20 @@ class _SpatialBoardState extends State<SpatialBoard> {
       context: context,
       builder: (context) {
         return Dialog(
+          constraints: BoxConstraints(minHeight: 200, maxWidth: 800),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: _textController,
+                  maxLines: 10,
                   autofocus: true,
                   decoration: const InputDecoration(
                     border: InputBorder.none,
+                    helperMaxLines: 4,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     disabledBorder: InputBorder.none,
