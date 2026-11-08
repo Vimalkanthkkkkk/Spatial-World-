@@ -25,6 +25,7 @@ class _SpatialBoardState extends State<SpatialBoard> {
 
   void _onPointerDown(PointerDownEvent event) {
     final kind = event.kind;
+    print('down - ${event.position - Offset(100 , 100)}');
     final canPan =
         kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||

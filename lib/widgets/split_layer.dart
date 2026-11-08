@@ -1,5 +1,7 @@
 import 'dart:collection';
 import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 
 typedef Content = ({String? text, Image? img});
@@ -35,9 +37,10 @@ class Controller {
   int _lastScene = -1;
   List<Item> _visible = const [];
 
-  void panBy(Offset delta) => camera.value += delta * 0.5;
+  void panBy(Offset delta) => camera.value += delta;
 
-  (int, int) _cellOf(double x, double y) => ((y / cellSize).floor(), (x / cellSize).floor());
+  (int, int) _cellOf(double x, double y) =>
+      ((y / cellSize).floor(), (x / cellSize).floor());
 
   Item addCard(Offset screenPoint, String text) {
     final world = screenPoint - camera.value;
@@ -137,6 +140,7 @@ class CardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, ui.Size size) {
     final pan = controller.camera.value;
+    print(pan);
     final viewport = Rect.fromLTWH(-pan.dx, -pan.dy, size.width, size.height);
     final items = controller.visibleItems(size);
     final fill = controller.fill;
@@ -145,6 +149,7 @@ class CardPainter extends CustomPainter {
     canvas.translate(pan.dx, pan.dy);
 
     for (final item in items) {
+      print(item);
       final rect = Rect.fromLTWH(
         item.position.x,
         item.position.y,
