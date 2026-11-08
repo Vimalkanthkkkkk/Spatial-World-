@@ -26,6 +26,7 @@ class Controller {
   final Map<(int, int), List<Item>> grid = HashMap();
   final ValueNotifier<Offset> camera = ValueNotifier(Offset.zero);
   final ValueNotifier<int> scene = ValueNotifier(0);
+  final dynamicNotifier = ValueNotifier<bool>(false);
   late final Listenable repaint = Listenable.merge([camera, scene]);
   final Paint fill = Paint()..style = PaintingStyle.fill;
   final Map<String, ({int version, TextPainter painter})> _text = {};
@@ -33,11 +34,33 @@ class Controller {
   double _maxExtent = 0;
   int _nextId = 0;
   String heldItem = '';
+  bool ishelded = false;
+  int istwoSecond = 0;
   (int, int, int, int)? _lastRange;
   int _lastScene = -1;
   List<Item> _visible = const [];
 
   void panBy(Offset delta) => camera.value += delta;
+
+  void findHeldItem(Offset position) {
+    List<Item> items = [];
+    Offset delta = camera.value;
+    if (ishelded) {
+      for (var item in _visible) {
+        final itemTopLeft = Offset(
+          delta.dx + item.position.x,
+          delta.dy + item.position.y,
+        );
+        final itemBoundingBox =
+            itemTopLeft & ui.Size(item.size.width, item.size.height);
+        if (itemBoundingBox.contains(position)) {
+          items.add(item);
+        }
+      }
+      items.sort((a, b) => a.zOrder.compareTo(b.zOrder));
+      heldItem = items.isNotEmpty ? items.last.id : '';
+    }
+  }
 
   (int, int) _cellOf(double x, double y) =>
       ((y / cellSize).floor(), (x / cellSize).floor());
@@ -140,30 +163,26 @@ class CardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, ui.Size size) {
     final pan = controller.camera.value;
-    print(pan);
     final viewport = Rect.fromLTWH(-pan.dx, -pan.dy, size.width, size.height);
     final items = controller.visibleItems(size);
     final fill = controller.fill;
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.translate(pan.dx, pan.dy);
-
     for (final item in items) {
-      print(item);
       final rect = Rect.fromLTWH(
         item.position.x,
         item.position.y,
-        item.size.width,
-        item.size.height,
+        item.size.width + 50,
+        item.size.height+ 50,
       );
       if (!viewport.overlaps(rect)) continue;
-      fill.color = item.style.color;
+      fill.color = const ui.Color.fromARGB(255, 248, 195, 2);
       canvas.drawRRect(RRect.fromRectAndRadius(rect, item.style.radius), fill);
       controller
           .textFor(item)
           ?.paint(canvas, rect.topLeft + const Offset(8, 8));
     }
-
     canvas.restore();
   }
 
@@ -173,11 +192,40 @@ class CardPainter extends CustomPainter {
 }
 
 class DynamicPainter extends CustomPainter {
-  @override
-  void paint(ui.Canvas canvas, ui.Size size) {}
+  DynamicPainter(this.controller) : super(repaint: controller.dynamicNotifier);
+  final Controller controller;
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    throw UnimplementedError();
+  void paint(ui.Canvas canvas, ui.Size size) {
+    final pan = controller.camera.value;
+    final items = controller._visible;
+    if (items.isEmpty) return;
+    final heldItem = items.singleWhere((i) => i.id == controller.heldItem) ;
+    final viewport = Rect.fromLTWH(-pan.dx, -pan.dy, size.width, size.height);
+    final fill = controller.fill;
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.translate(pan.dx, pan.dy);
+    final rect = Rect.fromLTWH(
+      heldItem.position.x,
+      heldItem.position.y,
+      heldItem.size.width,
+      heldItem.size.height,
+    );
+    if (!viewport.overlaps(rect)) return;
+    fill.color = heldItem.style.color;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, heldItem.style.radius),
+      fill,
+    );
+    controller
+        .textFor(heldItem)
+        ?.paint(canvas, rect.topLeft + const Offset(8, 8));
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(DynamicPainter oldDelegate) {
+    return oldDelegate.controller != controller;
   }
 }

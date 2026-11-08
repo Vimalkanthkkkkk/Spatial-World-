@@ -24,8 +24,10 @@ class _SpatialBoardState extends State<SpatialBoard> {
   }
 
   void _onPointerDown(PointerDownEvent event) {
+    controller.istwoSecond = DateTime.now().millisecondsSinceEpoch;
+    controller.ishelded = true;
     final kind = event.kind;
-    print('down - ${event.position - Offset(100 , 100)}');
+    controller.findHeldItem(event.position);
     final canPan =
         kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||
@@ -35,11 +37,20 @@ class _SpatialBoardState extends State<SpatialBoard> {
   }
 
   void _onPointerMove(PointerMoveEvent event) {
+    controller.ishelded = false;
     if (event.pointer != _panPointer) return;
     controller.panBy(event.delta);
   }
 
   void _onPointerEnd(PointerEvent event) {
+    int end = DateTime.now().millisecondsSinceEpoch;
+    if (end - controller.istwoSecond >= 2000 &&
+        controller.ishelded &&
+        controller.heldItem != '') {
+      controller.dynamicNotifier.value = !controller.dynamicNotifier.value;
+      controller.ishelded = false;
+      controller.heldItem = '';
+    }
     if (event.pointer == _panPointer) _panPointer = null;
   }
 
@@ -114,10 +125,19 @@ class _SpatialBoardState extends State<SpatialBoard> {
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         body: RepaintBoundary(
-          child: CustomPaint(
-            size: ui.Size.infinite,
-            painter: CardPainter(controller),
-          ),
+          child: Stack(
+            alignment: AlignmentGeometry.topLeft,
+            children: [
+              CustomPaint(
+                size: ui.Size.infinite,
+                painter: CardPainter(controller),
+              ),
+              CustomPaint(
+                size: ui.Size.infinite,
+                painter: DynamicPainter(controller),
+              )
+            ],
+          ) 
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: _showAddDialog,
