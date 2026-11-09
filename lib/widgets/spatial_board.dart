@@ -11,47 +11,50 @@ class SpatialBoard extends StatefulWidget {
   State<SpatialBoard> createState() => _SpatialBoardState();
 }
 
-class _SpatialBoardState extends State<SpatialBoard> {
-  final Controller controller = Controller();
+class _SpatialBoardState extends State<SpatialBoard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Controller controller;
+
   final TextEditingController _textController = TextEditingController();
-  int? _panPointer;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    controller = Controller(_animationController);
+    controller.scaleAnimation = Tween<double>(
+      begin: 1.00,
+      end: 1.08,
+    ).animate(_animationController);
+  }
 
   @override
   void dispose() {
+    _animationController.dispose();
     controller.dispose();
     _textController.dispose();
     super.dispose();
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    controller.istwoSecond = DateTime.now().millisecondsSinceEpoch;
-    controller.ishelded = true;
     final kind = event.kind;
-    controller.findHeldItem(event.position);
     final canPan =
         kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||
         kind == PointerDeviceKind.invertedStylus;
-    if (!canPan) return;
-    _panPointer ??= event.pointer;
+    controller.pointerDown(event.pointer, event.localPosition, canPan: canPan);
   }
 
   void _onPointerMove(PointerMoveEvent event) {
-    controller.ishelded = false;
-    if (event.pointer != _panPointer) return;
-    controller.panBy(event.delta);
+    controller.pointerMove(event.pointer, event.localPosition, event.delta);
   }
 
   void _onPointerEnd(PointerEvent event) {
-    int end = DateTime.now().millisecondsSinceEpoch;
-    if (end - controller.istwoSecond >= 2000 &&
-        controller.ishelded &&
-        controller.heldItem != '') {
-      controller.dynamicNotifier.value = !controller.dynamicNotifier.value;
-      controller.ishelded = false;
-      controller.heldItem = '';
-    }
-    if (event.pointer == _panPointer) _panPointer = null;
+    controller.pointerEnd(event.pointer);
   }
 
   void _onPanZoomUpdate(PointerPanZoomUpdateEvent event) {
@@ -124,20 +127,12 @@ class _SpatialBoardState extends State<SpatialBoard> {
       onPointerSignal: _onPointerSignal,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        body: RepaintBoundary(
-          child: Stack(
-            alignment: AlignmentGeometry.topLeft,
-            children: [
-              CustomPaint(
-                size: ui.Size.infinite,
-                painter: CardPainter(controller),
-              ),
-              CustomPaint(
-                size: ui.Size.infinite,
-                painter: DynamicPainter(controller),
-              )
-            ],
-          ) 
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            RepaintBoundary(child: CustomPaint(painter: CardPainter(controller))),
+            RepaintBoundary(child: CustomPaint(painter: DynamicPainter(controller))),
+          ],
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: _showAddDialog,
