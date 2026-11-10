@@ -35,6 +35,8 @@ class Controller {
   late final Listenable repaint = Listenable.merge([camera, scene]);
   final Paint fill = Paint()..style = PaintingStyle.fill;
   final Map<String, ({int version, TextPainter painter})> _text = {};
+  double screenWidth = 0;
+  double screenHeight = 0;
 
   double _maxExtent = 0;
   int _nextId = 0;
@@ -77,7 +79,6 @@ class Controller {
         best = item;
       }
     }
-    print('best - ${best?.id}');
     return best;
   }
 
@@ -165,9 +166,7 @@ class Controller {
   }
 
   void pointerDown(int pointer, Offset local, {required bool canPan}) {
-    print("oo");
     if (activePointer != null || heldItem != null) return;
-    print("hey!1!");
     activePointer = pointer;
     _canPan = canPan;
     downPosition = local;
@@ -205,8 +204,15 @@ class Controller {
         }
       case TouchMode.armed:
         dragOffset.value += delta;
+        print(screenWidth);
+        double dd =
+            screenWidth -
+            (camera.value.dx +
+                dragOffset.value.dx +
+                100 +
+                (heldItem?.position.x ?? 0));
       case TouchMode.panning:
-        panBy(delta);
+        break;
       case TouchMode.idle:
         break;
     }
@@ -274,6 +280,7 @@ class CardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, ui.Size size) {
     final pan = controller.camera.value;
+    print(pan);
     final viewport = Rect.fromLTWH(-pan.dx, -pan.dy, size.width, size.height);
     final items = controller.visibleItems(size);
     final heldId = controller.heldItem?.id;
@@ -282,6 +289,7 @@ class CardPainter extends CustomPainter {
     canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.translate(pan.dx, pan.dy);
     for (final item in items) {
+      print(item);
       if (item.id == heldId) continue;
       final rect = Rect.fromLTWH(
         item.position.x,

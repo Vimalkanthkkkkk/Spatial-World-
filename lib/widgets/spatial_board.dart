@@ -15,7 +15,6 @@ class _SpatialBoardState extends State<SpatialBoard>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Controller controller;
-
   final TextEditingController _textController = TextEditingController();
 
   @override
@@ -30,7 +29,7 @@ class _SpatialBoardState extends State<SpatialBoard>
     controller.scaleAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: Curves.easeOutBack, 
+        curve: Curves.easeOutBack,
         reverseCurve: Curves.easeIn,
       ),
     );
@@ -45,6 +44,7 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerDown(PointerDownEvent event) {
+    print(event.localPosition);
     final kind = event.kind;
     final canPan =
         kind == PointerDeviceKind.mouse ||
@@ -122,6 +122,8 @@ class _SpatialBoardState extends State<SpatialBoard>
 
   @override
   Widget build(BuildContext context) {
+    controller.screenWidth = MediaQuery.of(context).size.width;
+    controller.screenHeight = MediaQuery.of(context).size.height;
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: _onPointerDown,
