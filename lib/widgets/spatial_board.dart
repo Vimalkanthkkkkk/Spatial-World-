@@ -22,14 +22,18 @@ class _SpatialBoardState extends State<SpatialBoard>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 180),
+      reverseDuration: const Duration(milliseconds: 140),
       vsync: this,
     );
     controller = Controller(_animationController);
-    controller.scaleAnimation = Tween<double>(
-      begin: 1.00,
-      end: 1.08,
-    ).animate(_animationController);
+    controller.scaleAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeOutBack, 
+        reverseCurve: Curves.easeIn,
+      ),
+    );
   }
 
   @override
@@ -43,6 +47,7 @@ class _SpatialBoardState extends State<SpatialBoard>
   void _onPointerDown(PointerDownEvent event) {
     final kind = event.kind;
     final canPan =
+        kind == PointerDeviceKind.mouse ||
         kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||
         kind == PointerDeviceKind.invertedStylus;
@@ -130,8 +135,15 @@ class _SpatialBoardState extends State<SpatialBoard>
         body: Stack(
           fit: StackFit.expand,
           children: [
-            RepaintBoundary(child: CustomPaint(painter: CardPainter(controller))),
-            RepaintBoundary(child: CustomPaint(painter: DynamicPainter(controller))),
+            RepaintBoundary(
+              child: CustomPaint(
+                size: ui.Size.infinite,
+                painter: CardPainter(controller),
+              ),
+            ),
+            RepaintBoundary(
+              child: CustomPaint(painter: DynamicPainter(controller)),
+            ),
           ],
         ),
         floatingActionButton: FloatingActionButton(

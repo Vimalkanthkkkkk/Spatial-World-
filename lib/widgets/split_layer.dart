@@ -9,6 +9,7 @@ typedef Content = ({String? text, Image? img});
 typedef Style = ({Color color, Radius radius});
 typedef Position = ({double x, double y});
 typedef Size = ({double width, double height});
+
 enum TouchMode { idle, pending, armed, panning }
 
 typedef Item = ({
@@ -25,6 +26,7 @@ typedef Item = ({
 
 class Controller {
   Controller(this.animationController);
+
   AnimationController animationController;
   static const int cellSize = 200;
   final Map<(int, int), List<Item>> grid = HashMap();
@@ -36,10 +38,10 @@ class Controller {
 
   double _maxExtent = 0;
   int _nextId = 0;
-  static const Duration holdDuration = Duration(seconds: 2);
-  static const double threshold = 10; 
+  static const Duration holdDuration = Duration(milliseconds: 300);
+  static const double threshold = 10;
   TouchMode mode = TouchMode.idle;
-  int? activePointer = 0;
+  int? activePointer;
   bool _canPan = false;
   bool _disposed = false;
   Item? candidate;
@@ -70,10 +72,12 @@ class Controller {
       );
       final itemBoundingBox =
           itemTopLeft & ui.Size(item.size.width, item.size.height);
-      if (itemBoundingBox.contains(position) && (best == null || item.zOrder > best.zOrder) ) {
+      if (itemBoundingBox.contains(position) &&
+          (best == null || item.zOrder > best.zOrder)) {
         best = item;
       }
     }
+    print('best - ${best?.id}');
     return best;
   }
 
@@ -161,7 +165,9 @@ class Controller {
   }
 
   void pointerDown(int pointer, Offset local, {required bool canPan}) {
+    print("oo");
     if (activePointer != null || heldItem != null) return;
+    print("hey!1!");
     activePointer = pointer;
     _canPan = canPan;
     downPosition = local;
@@ -179,11 +185,11 @@ class Controller {
   void _arm() {
     final c = candidate;
     if (_disposed || mode != TouchMode.pending || c == null) return;
-    heldItem = c; 
+    heldItem = c;
     candidate = null;
     dragOffset.value = Offset.zero;
     mode = TouchMode.armed;
-    scene.value++; 
+    scene.value++;
     animationController.forward(from: 0);
   }
 
@@ -239,7 +245,7 @@ class Controller {
       parentId: item.parentId,
       style: item.style,
       content: item.content,
-      version: item.version, 
+      version: item.version,
     );
     grid.putIfAbsent(_cellOf(x, y), () => []).add(moved);
 
@@ -289,8 +295,8 @@ class CardPainter extends CustomPainter {
       controller
           .textFor(item)
           ?.paint(canvas, rect.topLeft + const Offset(8, 8));
-      canvas.restore();
     }
+    canvas.restore();
   }
 
   @override
@@ -323,10 +329,12 @@ class DynamicPainter extends CustomPainter {
     canvas.translate(-rect.center.dx, -rect.center.dy);
     controller.fill.color = heldItem.style.color;
     canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, heldItem.style.radius),
-        controller.fill,
-      );
-    controller.textFor(heldItem)?.paint(canvas, rect.topLeft + const Offset(8, 8));
+      RRect.fromRectAndRadius(rect, heldItem.style.radius),
+      controller.fill,
+    );
+    controller
+        .textFor(heldItem)
+        ?.paint(canvas, rect.topLeft + const Offset(8, 8));
     canvas.restore();
   }
 
