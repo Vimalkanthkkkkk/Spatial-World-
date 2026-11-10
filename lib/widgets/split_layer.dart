@@ -204,7 +204,6 @@ class Controller {
         }
       case TouchMode.armed:
         dragOffset.value += delta;
-        print(screenWidth);
         double dd =
             screenWidth -
             (camera.value.dx +
@@ -280,7 +279,6 @@ class CardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, ui.Size size) {
     final pan = controller.camera.value;
-    print(pan);
     final viewport = Rect.fromLTWH(-pan.dx, -pan.dy, size.width, size.height);
     final items = controller.visibleItems(size);
     final heldId = controller.heldItem?.id;
@@ -289,7 +287,6 @@ class CardPainter extends CustomPainter {
     canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.translate(pan.dx, pan.dy);
     for (final item in items) {
-      print(item);
       if (item.id == heldId) continue;
       final rect = Rect.fromLTWH(
         item.position.x,

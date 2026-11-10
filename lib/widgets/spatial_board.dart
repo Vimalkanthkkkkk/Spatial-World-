@@ -44,7 +44,6 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    print(event.localPosition);
     final kind = event.kind;
     final canPan =
         kind == PointerDeviceKind.mouse ||
