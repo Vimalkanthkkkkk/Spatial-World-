@@ -32,7 +32,8 @@ class Controller {
   final Map<(int, int), List<Item>> grid = HashMap();
   final ValueNotifier<Offset> camera = ValueNotifier(Offset.zero);
   final ValueNotifier<int> scene = ValueNotifier(0);
-  late final Listenable repaint = Listenable.merge([camera, scene]);
+  final ValueNotifier<double> scale = ValueNotifier(1);
+  late final Listenable repaint = Listenable.merge([camera, scene, scale]);
   final Paint fill = Paint()..style = PaintingStyle.fill;
   final Map<String, ({int version, TextPainter painter})> _text = {};
   double screenWidth = 0;
@@ -53,6 +54,7 @@ class Controller {
   late Animation<double> scaleAnimation;
   late final Listenable dynamicrepaint = Listenable.merge([
     camera,
+    scene,
     dragOffset,
     animationController,
   ]);
@@ -231,7 +233,9 @@ class Controller {
   }
 
   void pointerMove(int pointer, Offset local, Offset delta) {
-    if (pointer != activePointer) return;
+    if (pointer != activePointer) {
+      return;
+    }
     switch (mode) {
       case TouchMode.pending:
         if ((local - downPosition).distance > threshold) {
@@ -270,7 +274,6 @@ class Controller {
     final oldCell = grid[oldKey];
     oldCell?.removeWhere((i) => i.id == item.id);
     if (oldCell != null && oldCell.isEmpty) grid.remove(oldKey);
-
     final x = item.position.x + d.dx;
     final y = item.position.y + d.dy;
     final Item moved = (
@@ -285,10 +288,9 @@ class Controller {
       version: item.version,
     );
     grid.putIfAbsent(_cellOf(x, y), () => []).add(moved);
-
     heldItem = null;
-    dragOffset.value = Offset.zero;
     scene.value++;
+    dragOffset.value = Offset.zero;
   }
 
   void dispose() {
@@ -318,6 +320,7 @@ class CardPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.translate(pan.dx, pan.dy);
+    canvas.scale(1.2);
     for (final item in items) {
       if (item.id == heldId) continue;
       final rect = Rect.fromLTWH(

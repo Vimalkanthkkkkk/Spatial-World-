@@ -48,12 +48,14 @@ class _SpatialBoardState extends State<SpatialBoard>
 
   void _onPointerDown(PointerDownEvent event) {
     final kind = event.kind;
-    final canPan = kind == PointerDeviceKind.touch ||
+    final canPan =
+        kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||
         kind == PointerDeviceKind.invertedStylus;
     controller.pointerDown(event.pointer, event.localPosition, canPan: canPan);
-    if (controller.activePointer == event.pointer && !_autoScrollTicker.isActive) {
-      controller.resetAutoScroll(); 
+    if (controller.activePointer == event.pointer &&
+        !_autoScrollTicker.isActive) {
+      controller.resetAutoScroll();
       _autoScrollTicker.start();
     }
   }
@@ -63,7 +65,7 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerEnd(PointerEvent event) {
-     controller.pointerEnd(event.pointer);
+    controller.pointerEnd(event.pointer);
     if (controller.activePointer == null && _autoScrollTicker.isActive) {
       _autoScrollTicker.stop();
     }
@@ -74,6 +76,9 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerSignal(PointerSignalEvent event) {
+    if (event is PointerScaleEvent) {
+      
+    }
     if (event is PointerScrollEvent) {
       controller.panBy(-event.scrollDelta);
     }
@@ -146,8 +151,12 @@ class _SpatialBoardState extends State<SpatialBoard>
             return Stack(
               fit: StackFit.expand,
               children: [
-                RepaintBoundary(child: CustomPaint(painter: CardPainter(controller))),
-                RepaintBoundary(child: CustomPaint(painter: DynamicPainter(controller))),
+                RepaintBoundary(
+                  child: CustomPaint(painter: CardPainter(controller)),
+                ),
+                RepaintBoundary(
+                  child: CustomPaint(painter: DynamicPainter(controller)),
+                ),
               ],
             );
           },
