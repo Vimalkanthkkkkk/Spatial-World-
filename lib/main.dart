@@ -59,7 +59,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
     return Listener(
       onPointerDown: _handlePointerDown,
       onPointerMove: _handlePointerMove,

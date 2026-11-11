@@ -61,8 +61,46 @@ class Controller {
   (int, int, int, int)? _lastRange;
   int _lastScene = -1;
   List<Item> _visible = const [];
+  Duration lastElapsed = Duration.zero;
+  static const double edgeMargin = 20;
+  static const double maxScrollSpeed = 600;
 
   void panBy(Offset delta) => camera.value += delta;
+  void resetAutoScroll() => lastElapsed = Duration.zero;
+
+  void autoScrollTick(Duration elapsed) {
+    final held = heldItem;
+    final dt = (elapsed - lastElapsed).inMicroseconds / 1000000.0;
+    lastElapsed = elapsed;
+    if (mode != TouchMode.armed || held == null || dt <= 0) return;
+    final pan = camera.value;
+    final drag = dragOffset.value;
+    final left = held.position.x + drag.dx + pan.dx;
+    final top = held.position.y + drag.dy + pan.dy;
+    final right = left + held.size.width;
+    final bottom = top + held.size.height;
+    final vx = _edgeVelocity(left, right, screenWidth);
+    final vy = _edgeVelocity(top, bottom, screenHeight);
+    if (vx == 0 && vy == 0) return;
+    final step = Offset(vx, vy) * (dt > 0.05 ? 0.05 : dt);
+    camera.value = pan - step;
+    dragOffset.value = drag + step;
+  }
+
+  double _edgeVelocity(double start, double end, double extent) {
+    if (end > extent - edgeMargin) {
+      final depth = ((end - (extent - edgeMargin)) / edgeMargin).clamp(
+        0.0,
+        1.0,
+      );
+      return depth * maxScrollSpeed;
+    }
+    if (start < edgeMargin) {
+      final depth = ((edgeMargin - start) / edgeMargin).clamp(0.0, 1.0);
+      return -depth * maxScrollSpeed;
+    }
+    return 0;
+  }
 
   Item? findHeldItem(Offset position) {
     Item? best;
@@ -204,12 +242,6 @@ class Controller {
         }
       case TouchMode.armed:
         dragOffset.value += delta;
-        double dd =
-            screenWidth -
-            (camera.value.dx +
-                dragOffset.value.dx +
-                100 +
-                (heldItem?.position.x ?? 0));
       case TouchMode.panning:
         break;
       case TouchMode.idle:

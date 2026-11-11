@@ -1,19 +1,18 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
 
 class SpatialBoard extends StatefulWidget {
   const SpatialBoard({super.key});
-
   @override
   State<SpatialBoard> createState() => _SpatialBoardState();
 }
 
 class _SpatialBoardState extends State<SpatialBoard>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _animationController;
+  late final Ticker _autoScrollTicker;
   late Controller controller;
   final TextEditingController _textController = TextEditingController();
 
@@ -26,6 +25,9 @@ class _SpatialBoardState extends State<SpatialBoard>
       vsync: this,
     );
     controller = Controller(_animationController);
+    _autoScrollTicker = createTicker((elapsed) {
+      controller.autoScrollTick(elapsed);
+    });
     controller.scaleAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(
         parent: _animationController,
@@ -39,18 +41,21 @@ class _SpatialBoardState extends State<SpatialBoard>
   void dispose() {
     _animationController.dispose();
     controller.dispose();
+    _autoScrollTicker.dispose();
     _textController.dispose();
     super.dispose();
   }
 
   void _onPointerDown(PointerDownEvent event) {
     final kind = event.kind;
-    final canPan =
-        kind == PointerDeviceKind.mouse ||
-        kind == PointerDeviceKind.touch ||
+    final canPan = kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||
         kind == PointerDeviceKind.invertedStylus;
     controller.pointerDown(event.pointer, event.localPosition, canPan: canPan);
+    if (controller.activePointer == event.pointer && !_autoScrollTicker.isActive) {
+      controller.resetAutoScroll(); 
+      _autoScrollTicker.start();
+    }
   }
 
   void _onPointerMove(PointerMoveEvent event) {
@@ -58,7 +63,10 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerEnd(PointerEvent event) {
-    controller.pointerEnd(event.pointer);
+     controller.pointerEnd(event.pointer);
+    if (controller.activePointer == null && _autoScrollTicker.isActive) {
+      _autoScrollTicker.stop();
+    }
   }
 
   void _onPanZoomUpdate(PointerPanZoomUpdateEvent event) {
@@ -121,8 +129,6 @@ class _SpatialBoardState extends State<SpatialBoard>
 
   @override
   Widget build(BuildContext context) {
-    controller.screenWidth = MediaQuery.of(context).size.width;
-    controller.screenHeight = MediaQuery.of(context).size.height;
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: _onPointerDown,
@@ -133,19 +139,18 @@ class _SpatialBoardState extends State<SpatialBoard>
       onPointerSignal: _onPointerSignal,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            RepaintBoundary(
-              child: CustomPaint(
-                size: ui.Size.infinite,
-                painter: CardPainter(controller),
-              ),
-            ),
-            RepaintBoundary(
-              child: CustomPaint(painter: DynamicPainter(controller)),
-            ),
-          ],
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            controller.screenWidth = constraints.maxWidth;
+            controller.screenHeight = constraints.maxHeight;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                RepaintBoundary(child: CustomPaint(painter: CardPainter(controller))),
+                RepaintBoundary(child: CustomPaint(painter: DynamicPainter(controller))),
+              ],
+            );
+          },
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: _showAddDialog,
