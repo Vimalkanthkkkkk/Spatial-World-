@@ -5,7 +5,7 @@ import 'dart:collection';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
 
-typedef Content = ({String? text, Image? img});
+typedef Content = ({String? title, String? text, Image? img});
 typedef Style = ({Color color, Radius radius});
 typedef Position = ({double x, double y});
 typedef Size = ({double width, double height});
@@ -24,6 +24,17 @@ typedef Item = ({
   int version,
 });
 
+void paintCardText(Controller c, Canvas canvas, Item item, Rect rect) {
+  final t = c.textFor(item);
+  if (t == null) return;
+  const pad = Controller.cardPadding;
+  t.title.paint(canvas, rect.topLeft + const Offset(pad, pad));
+  t.body?.paint(
+    canvas,
+    rect.topLeft + Offset(pad, pad + t.title.height + 6),
+  );
+}
+
 class Controller {
   Controller(this.animationController);
 
@@ -33,9 +44,8 @@ class Controller {
   final ValueNotifier<Offset> camera = ValueNotifier(Offset.zero);
   final ValueNotifier<int> scene = ValueNotifier(0);
   final ValueNotifier<double> scale = ValueNotifier(1);
-  late final Listenable repaint = Listenable.merge([camera, scene, scale]);
+  late final Listenable repaint = Listenable.merge([camera, scene]);
   final Paint fill = Paint()..style = PaintingStyle.fill;
-  final Map<String, ({int version, TextPainter painter})> _text = {};
   double screenWidth = 0;
   double screenHeight = 0;
 
@@ -66,27 +76,50 @@ class Controller {
   Duration lastElapsed = Duration.zero;
   static const double edgeMargin = 20;
   static const double maxScrollSpeed = 600;
+  static const double speed = 0.7;
 
-  void panBy(Offset delta) => camera.value += delta;
+  static const double cardWidth = 240;
+  static const double cardHeight = 160;
+  static const double cardPadding = 12;
+
+  final Map<String, String> deltas = {};
+  void Function(Item item)? onTapCard;
+  final Map<String, ({int version, TextPainter title, TextPainter? body})> _text = {};
+
+
+
+  void panBy(Offset delta) => camera.value += delta * speed;
   void resetAutoScroll() => lastElapsed = Duration.zero;
 
+  static const double minZoom = 0.1, maxZoom = 4.0;
+
+  void zoomAt(double factor, Offset focal) {
+    final z = scale.value;
+    final newZ = (z * factor).clamp(minZoom, maxZoom);
+    final ratio = newZ / z;
+    if (ratio == 1) return;
+    camera.value = focal - (focal - camera.value) * ratio;
+    scale.value = newZ;
+  }
+
   void autoScrollTick(Duration elapsed) {
+    final zoomScale = scale.value;
     final held = heldItem;
     final dt = (elapsed - lastElapsed).inMicroseconds / 1000000.0;
     lastElapsed = elapsed;
     if (mode != TouchMode.armed || held == null || dt <= 0) return;
     final pan = camera.value;
     final drag = dragOffset.value;
-    final left = held.position.x + drag.dx + pan.dx;
-    final top = held.position.y + drag.dy + pan.dy;
-    final right = left + held.size.width;
-    final bottom = top + held.size.height;
+    final left = (held.position.x + drag.dx) * zoomScale + pan.dx;
+    final top = (held.position.y + drag.dy) * zoomScale + pan.dy;
+    final right = left + held.size.width * zoomScale;
+    final bottom = top + held.size.height * zoomScale;
     final vx = _edgeVelocity(left, right, screenWidth);
     final vy = _edgeVelocity(top, bottom, screenHeight);
     if (vx == 0 && vy == 0) return;
     final step = Offset(vx, vy) * (dt > 0.05 ? 0.05 : dt);
     camera.value = pan - step;
-    dragOffset.value = drag + step;
+    dragOffset.value = drag + step / zoomScale;
   }
 
   double _edgeVelocity(double start, double end, double extent) {
@@ -104,18 +137,18 @@ class Controller {
     return 0;
   }
 
-  Item? findHeldItem(Offset position) {
+  Item? findHeldItem(Offset local) {
+    final z = scale.value;
+    final world = (local - camera.value) / z;
     Item? best;
-    Offset delta = camera.value;
-    for (var item in _visible) {
-      final itemTopLeft = Offset(
-        delta.dx + item.position.x,
-        delta.dy + item.position.y,
+    for (final item in _visible) {
+      final rect = Rect.fromLTWH(
+        item.position.x,
+        item.position.y,
+        item.size.width,
+        item.size.height,
       );
-      final itemBoundingBox =
-          itemTopLeft & ui.Size(item.size.width, item.size.height);
-      if (itemBoundingBox.contains(position) &&
-          (best == null || item.zOrder > best.zOrder)) {
+      if (rect.contains(world) && (best == null || item.zOrder > best.zOrder)) {
         best = item;
       }
     }
@@ -125,28 +158,58 @@ class Controller {
   (int, int) _cellOf(double x, double y) =>
       ((y / cellSize).floor(), (x / cellSize).floor());
 
-  Item addCard(Offset screenPoint, String text) {
-    final world = screenPoint - camera.value;
+  Item addCard(Offset screenPoint, {
+    required String title,
+    required String text,
+    required String deltaJson,
+    required Color color,
+  }) {
+    final z = scale.value;
+    final world = (screenPoint - camera.value) / z - const Offset(cardWidth / 2, cardHeight / 2);
     final id = _nextId++;
     final Item item = (
       id: 'item_$id',
       type: 'CARD',
       position: (x: world.dx, y: world.dy),
-      size: (width: 100, height: 100),
+      size: (width: cardWidth, height: cardHeight),
       zOrder: id,
       parentId: 0,
-      style: (
-        color: const Color.fromARGB(247, 23, 23, 223),
-        radius: const Radius.circular(10),
-      ),
-      content: (text: text, img: null),
+      style: (color: color, radius: const Radius.circular(14)),
+      content: (title: title, text: text, img: null),
       version: 1,
     );
+    deltas[item.id] = deltaJson;
     grid.putIfAbsent(_cellOf(world.dx, world.dy), () => []).add(item);
     if (item.size.width > _maxExtent) _maxExtent = item.size.width;
     if (item.size.height > _maxExtent) _maxExtent = item.size.height;
     scene.value++;
     return item;
+  }
+
+  void updateCard(Item item, {
+    required String title,
+    required String text,
+    required String deltaJson,
+    required Color color,
+  }) {
+    final cell = grid[_cellOf(item.position.x, item.position.y)];
+    if (cell == null) return;
+    final i = cell.indexWhere((e) => e.id == item.id);
+    if (i < 0) return;
+    final old = cell[i];
+    cell[i] = (
+      id: old.id,
+      type: old.type,
+      position: old.position,
+      size: old.size,
+      zOrder: old.zOrder,
+      parentId: old.parentId,
+      style: (color: color, radius: old.style.radius),
+      content: (title: title, text: text, img: old.content.img),
+      version: old.version + 1, 
+    );
+    deltas[old.id] = deltaJson;
+    scene.value++;
   }
 
   void removeCard(Item item) {
@@ -155,16 +218,24 @@ class Controller {
     if (cell == null) return;
     cell.removeWhere((i) => i.id == item.id);
     if (cell.isEmpty) grid.remove(key);
-    _text.remove(item.id)?.painter.dispose();
+    final cached = _text.remove(item.id);
+    cached?.title.dispose();
+    cached?.body?.dispose();
+    deltas.remove(item.id);
     scene.value++;
   }
 
   List<Item> visibleItems(ui.Size screen) {
+    final zoom = scale.value;
     final pan = camera.value;
-    final left = -pan.dx - _maxExtent;
-    final top = -pan.dy - _maxExtent;
-    final right = -pan.dx + screen.width;
-    final bottom = -pan.dy + screen.height;
+    final worldLeft = -pan.dx / zoom;
+    final worldTop = -pan.dy / zoom;
+    final worldRight = (-pan.dx + screen.width) / zoom;
+    final worldBottom = (-pan.dy + screen.height) / zoom;
+    final left = worldLeft - _maxExtent;
+    final top = worldTop - _maxExtent;
+    final right = worldRight;
+    final bottom = worldBottom;
     final c0 = (left / cellSize).floor();
     final c1 = (right / cellSize).floor();
     final r0 = (top / cellSize).floor();
@@ -184,25 +255,70 @@ class Controller {
     return _visible = out;
   }
 
-  TextPainter? textFor(Item item) {
-    final text = item.content.text;
-    if (text == null || text.isEmpty) return null;
+  ({String title, String body}) split(Content c) {
+    final full = (c.text ?? '').trim();
+    final explicit = (c.title ?? '').trim();
+    if (explicit.isNotEmpty) return (title: explicit, body: full);
+    final nl = full.indexOf('\n');
+    if (nl < 0) return (title: full, body: '');
+    return (
+      title: full.substring(0, nl).trim(),
+      body: full.substring(nl + 1).trim(),
+    );
+  }
+
+
+  ({TextPainter title, TextPainter? body})? textFor(Item item) {
     final cached = _text[item.id];
     if (cached != null && cached.version == item.version) {
-      return cached.painter;
+      return (title: cached.title, body: cached.body);
     }
-    cached?.painter.dispose();
-    final painter = TextPainter(
+    cached?.title.dispose();
+    cached?.body?.dispose();
+    final parts = split(item.content);
+    if (parts.title.isEmpty && parts.body.isEmpty) {
+      _text.remove(item.id);
+      return null;
+    }
+    final maxWidth = item.size.width - cardPadding * 2;
+    final title = TextPainter(
       text: TextSpan(
-        text: text,
-        style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 14),
+        text: parts.title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
+        ),
       ),
       textDirection: ui.TextDirection.ltr,
-      maxLines: 4,
+      maxLines: 2,
       ellipsis: '…',
-    )..layout(maxWidth: item.size.width - 16);
-    _text[item.id] = (version: item.version, painter: painter);
-    return painter;
+    )..layout(maxWidth: maxWidth);
+    TextPainter? body;
+    if (parts.body.isNotEmpty) {
+      const fontSize = 13.0;
+      const lineHeight = 1.3;
+      final available = item.size.height - cardPadding * 2 - title.height - 6;
+      final lines = (available / (fontSize * lineHeight)).floor();
+      if (lines >= 1) {
+        body = TextPainter(
+          text: TextSpan(
+            text: parts.body,
+            style: const TextStyle(
+              color: Color(0xB3FFFFFF),
+              fontSize: fontSize,
+              height: lineHeight,
+            ),
+          ),
+          textDirection: ui.TextDirection.ltr,
+          maxLines: lines,
+          ellipsis: '…',
+        )..layout(maxWidth: maxWidth);
+      }
+    }
+    _text[item.id] = (version: item.version, title: title, body: body);
+    return (title: title, body: body);
   }
 
   void pointerDown(int pointer, Offset local, {required bool canPan}) {
@@ -245,7 +361,7 @@ class Controller {
           if (mode == TouchMode.panning) panBy(local - downPosition);
         }
       case TouchMode.armed:
-        dragOffset.value += delta;
+        dragOffset.value += delta / scale.value;
       case TouchMode.panning:
         break;
       case TouchMode.idle:
@@ -253,8 +369,9 @@ class Controller {
     }
   }
 
-  void pointerEnd(int pointer) {
+  void pointerEnd(int pointer, {bool isUp = false}) {
     if (pointer != activePointer) return;
+    final tapped = (isUp && mode == TouchMode.pending) ? candidate : null;
     holdTimer?.cancel();
     holdTimer = null;
     candidate = null;
@@ -264,6 +381,7 @@ class Controller {
     if (wasArmed) {
       animationController.reverse().whenComplete(_commit);
     }
+    if (tapped != null) onTapCard?.call(tapped);
   }
 
   void _commit() {
@@ -297,13 +415,15 @@ class Controller {
     _disposed = true;
     holdTimer?.cancel();
     for (final entry in _text.values) {
-      entry.painter.dispose();
+      entry.title.dispose();
+      entry.body?.dispose();
     }
     _text.clear();
     dragOffset.dispose();
     camera.dispose();
     scene.dispose();
   }
+
 }
 
 class CardPainter extends CustomPainter {
@@ -312,15 +432,21 @@ class CardPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, ui.Size size) {
+    final scale = controller.scale.value;
     final pan = controller.camera.value;
-    final viewport = Rect.fromLTWH(-pan.dx, -pan.dy, size.width, size.height);
+    final viewport = Rect.fromLTWH(
+      -pan.dx / scale,
+      -pan.dy / scale,
+      size.width / scale,
+      size.height / scale,
+    );
     final items = controller.visibleItems(size);
     final heldId = controller.heldItem?.id;
     final fill = controller.fill;
     canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.clipRect(Offset.zero & size);
     canvas.translate(pan.dx, pan.dy);
-    canvas.scale(1.2);
+    canvas.scale(scale);
     for (final item in items) {
       if (item.id == heldId) continue;
       final rect = Rect.fromLTWH(
@@ -332,9 +458,7 @@ class CardPainter extends CustomPainter {
       if (!viewport.overlaps(rect)) continue;
       fill.color = item.style.color;
       canvas.drawRRect(RRect.fromRectAndRadius(rect, item.style.radius), fill);
-      controller
-          .textFor(item)
-          ?.paint(canvas, rect.topLeft + const Offset(8, 8));
+      paintCardText(controller, canvas, item, rect);
     }
     canvas.restore();
   }
@@ -355,6 +479,7 @@ class DynamicPainter extends CustomPainter {
     final pan = controller.camera.value;
     final drag = controller.dragOffset.value;
     final scale = controller.scaleAnimation.value;
+    final zoomScale = controller.scale.value;
     final rect = Rect.fromLTWH(
       heldItem.position.x + drag.dx,
       heldItem.position.y + drag.dy,
@@ -364,6 +489,7 @@ class DynamicPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.translate(pan.dx, pan.dy);
+    canvas.scale(zoomScale);
     canvas.translate(rect.center.dx, rect.center.dy);
     canvas.scale(scale);
     canvas.translate(-rect.center.dx, -rect.center.dy);
@@ -372,9 +498,7 @@ class DynamicPainter extends CustomPainter {
       RRect.fromRectAndRadius(rect, heldItem.style.radius),
       controller.fill,
     );
-    controller
-        .textFor(heldItem)
-        ?.paint(canvas, rect.topLeft + const Offset(8, 8));
+    paintCardText(controller, canvas, heldItem, rect);
     canvas.restore();
   }
 

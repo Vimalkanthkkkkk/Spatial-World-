@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
+import 'package:spatial_world/widgets/card_editor_dialog.dart';
 
 class SpatialBoard extends StatefulWidget {
   const SpatialBoard({super.key});
@@ -14,7 +15,43 @@ class _SpatialBoardState extends State<SpatialBoard>
   late AnimationController _animationController;
   late final Ticker _autoScrollTicker;
   late Controller controller;
-  final TextEditingController _textController = TextEditingController();
+  double _lastScale = 1.0;
+
+  Future<void> addCard() async {
+  final result = await showDialog<CardEditorResult>(
+    context: context,
+    builder: (_) => const CardEditorDialog(),
+  );
+  if (result == null || !mounted) return;
+  controller.addCard(
+    Offset(controller.screenWidth / 2, controller.screenHeight / 2),
+    title: result.title,
+    text: result.text,
+    deltaJson: result.deltaJson,
+    color: result.color,
+  );
+}
+
+Future<void> editCard(Item item) async {
+  final result = await showDialog<CardEditorResult>(
+    context: context,
+    builder: (_) => CardEditorDialog(
+      initialTitle: item.content.title ?? '',
+      initialText: item.content.text,
+      initialDeltaJson: controller.deltas[item.id],
+      initialColor: item.style.color,
+      confirmLabel: 'Save',
+    ),
+  );
+  if (result == null || !mounted) return;
+  controller.updateCard(
+    item,
+    title: result.title,
+    text: result.text,
+    deltaJson: result.deltaJson,
+    color: result.color,
+  );
+}
 
   @override
   void initState() {
@@ -25,6 +62,7 @@ class _SpatialBoardState extends State<SpatialBoard>
       vsync: this,
     );
     controller = Controller(_animationController);
+    controller.onTapCard = editCard;
     _autoScrollTicker = createTicker((elapsed) {
       controller.autoScrollTick(elapsed);
     });
@@ -42,7 +80,6 @@ class _SpatialBoardState extends State<SpatialBoard>
     _animationController.dispose();
     controller.dispose();
     _autoScrollTicker.dispose();
-    _textController.dispose();
     super.dispose();
   }
 
@@ -65,72 +102,31 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerEnd(PointerEvent event) {
-    controller.pointerEnd(event.pointer);
+    controller.pointerEnd(event.pointer, isUp: event is PointerUpEvent);
     if (controller.activePointer == null && _autoScrollTicker.isActive) {
       _autoScrollTicker.stop();
     }
   }
 
-  void _onPanZoomUpdate(PointerPanZoomUpdateEvent event) {
-    controller.panBy(event.panDelta);
+  void _onPanZoomStart(PointerPanZoomStartEvent e) => _lastScale = 1.0;
+
+  void _onPanZoomUpdate(PointerPanZoomUpdateEvent e) {
+    controller.panBy(e.panDelta);
+    final factor = e.scale / _lastScale;
+    _lastScale = e.scale;
+    controller.zoomAt(factor, e.localPosition);
   }
 
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is PointerScaleEvent) {
-      
+      controller.zoomAt(event.scale, event.localPosition);
     }
     if (event is PointerScrollEvent) {
       controller.panBy(-event.scrollDelta);
     }
   }
 
-  void _showAddDialog() {
-    _textController.clear();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          constraints: BoxConstraints(minHeight: 200, maxWidth: 800),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _textController,
-                  maxLines: 10,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    helperMaxLines: 4,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    filled: false,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: TextButton(
-                    onPressed: () {
-                      final text = _textController.text.trim();
-                      if (text.isEmpty) return;
-                      controller.addCard(const Offset(100, 100), text);
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Add'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+ 
 
   @override
   Widget build(BuildContext context) {
@@ -142,6 +138,7 @@ class _SpatialBoardState extends State<SpatialBoard>
       onPointerCancel: _onPointerEnd,
       onPointerPanZoomUpdate: _onPanZoomUpdate,
       onPointerSignal: _onPointerSignal,
+      onPointerPanZoomStart: _onPanZoomStart,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         body: LayoutBuilder(
@@ -152,7 +149,7 @@ class _SpatialBoardState extends State<SpatialBoard>
               fit: StackFit.expand,
               children: [
                 RepaintBoundary(
-                  child: CustomPaint(painter: CardPainter(controller)),
+                  child: CustomPaint(painter: CardPainter(controller) ),
                 ),
                 RepaintBoundary(
                   child: CustomPaint(painter: DynamicPainter(controller)),
@@ -162,7 +159,7 @@ class _SpatialBoardState extends State<SpatialBoard>
           },
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: _showAddDialog,
+          onPressed: addCard,
           tooltip: 'Add',
           child: const Icon(Icons.add),
         ),
