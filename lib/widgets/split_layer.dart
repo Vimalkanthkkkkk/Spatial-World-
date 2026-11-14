@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:collection';
+
 import 'package:flutter/material.dart';
 
 typedef Content = ({String? title, String? text, Image? img});
@@ -27,10 +28,7 @@ void paintCardText(Controller c, Canvas canvas, Item item, Rect rect) {
   if (t == null) return;
   const pad = Controller.cardPadding;
   t.title.paint(canvas, rect.topLeft + const Offset(pad, pad));
-  t.body?.paint(
-    canvas,
-    rect.topLeft + Offset(pad, pad + t.title.height + 6),
-  );
+  t.body?.paint(canvas, rect.topLeft + Offset(pad, pad + t.title.height + 6));
 }
 
 class Controller {
@@ -82,9 +80,8 @@ class Controller {
 
   final Map<String, String> deltas = {};
   void Function(Item item)? onTapCard;
-  final Map<String, ({int version, TextPainter title, TextPainter? body})> _text = {};
-
-
+  final Map<String, ({int version, TextPainter title, TextPainter? body})>
+  _text = {};
 
   void panBy(Offset delta) => camera.value += delta * speed;
   void resetAutoScroll() => lastElapsed = Duration.zero;
@@ -156,14 +153,17 @@ class Controller {
   (int, int) _cellOf(double x, double y) =>
       ((y / cellSize).floor(), (x / cellSize).floor());
 
-  Item addCard(Offset screenPoint, {
+  Item addCard(
+    Offset screenPoint, {
     required String title,
     required String text,
     required String deltaJson,
     required Color color,
   }) {
     final z = scale.value;
-    final world = (screenPoint - camera.value) / z - const Offset(cardWidth / 2, cardHeight / 2);
+    final world =
+        (screenPoint - camera.value) / z -
+        const Offset(cardWidth / 2, cardHeight / 2);
     final id = _nextId++;
     final Item item = (
       id: 'item_$id',
@@ -184,7 +184,8 @@ class Controller {
     return item;
   }
 
-  void updateCard(Item item, {
+  void updateCard(
+    Item item, {
     required String title,
     required String text,
     required String deltaJson,
@@ -204,7 +205,7 @@ class Controller {
       parentId: old.parentId,
       style: (color: color, radius: old.style.radius),
       content: (title: title, text: text, img: old.content.img),
-      version: old.version + 1, 
+      version: old.version + 1,
     );
     deltas[old.id] = deltaJson;
     scene.value++;
@@ -264,7 +265,6 @@ class Controller {
       body: full.substring(nl + 1).trim(),
     );
   }
-
 
   ({TextPainter title, TextPainter? body})? textFor(Item item) {
     final cached = _text[item.id];
@@ -361,7 +361,7 @@ class Controller {
       case TouchMode.armed:
         dragOffset.value += delta / scale.value;
       case TouchMode.panning:
-        break;
+        panBy(delta);
       case TouchMode.idle:
         break;
     }
@@ -421,7 +421,6 @@ class Controller {
     camera.dispose();
     scene.dispose();
   }
-
 }
 
 class CardPainter extends CustomPainter {

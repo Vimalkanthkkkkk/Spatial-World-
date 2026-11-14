@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
 import 'package:spatial_world/widgets/card_editor_dialog.dart';
 
@@ -16,6 +17,7 @@ class _SpatialBoardState extends State<SpatialBoard>
   late final Ticker _autoScrollTicker;
   late Controller controller;
   double _lastScale = 1.0;
+  bool isCtrlPressed = false;
 
   Future<void> addCard() async {
     final result = await showDialog<CardEditorResult>(
@@ -41,6 +43,7 @@ class _SpatialBoardState extends State<SpatialBoard>
         initialDeltaJson: controller.deltas[item.id],
         initialColor: item.style.color,
         confirmLabel: 'Save',
+        startReadOnly: true, 
       ),
     );
     if (result == null || !mounted) return;
@@ -86,9 +89,16 @@ class _SpatialBoardState extends State<SpatialBoard>
   void _onPointerDown(PointerDownEvent event) {
     final kind = event.kind;
     final canPan =
+        kind == PointerDeviceKind.mouse ||
         kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||
         kind == PointerDeviceKind.invertedStylus;
+    isCtrlPressed = HardwareKeyboard.instance.isControlPressed;
+    if (isCtrlPressed) {
+      debugPrint('Pointer down while Control is pressed');
+    } else {
+      debugPrint('Normal pointer down');
+    }
     controller.pointerDown(event.pointer, event.localPosition, canPan: canPan);
     if (controller.activePointer == event.pointer &&
         !_autoScrollTicker.isActive) {
@@ -98,10 +108,15 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerMove(PointerMoveEvent event) {
+    if (isCtrlPressed = HardwareKeyboard.instance.isControlPressed) {
+      debugPrint('Pointer down while Control is pressed');
+    }
     controller.pointerMove(event.pointer, event.localPosition, event.delta);
   }
 
   void _onPointerEnd(PointerEvent event) {
+    debugPrint("ff");
+    isCtrlPressed = false;
     controller.pointerEnd(event.pointer, isUp: event is PointerUpEvent);
     if (controller.activePointer == null && _autoScrollTicker.isActive) {
       _autoScrollTicker.stop();
@@ -126,8 +141,6 @@ class _SpatialBoardState extends State<SpatialBoard>
     }
   }
 
- 
-
   @override
   Widget build(BuildContext context) {
     return Listener(
@@ -149,7 +162,7 @@ class _SpatialBoardState extends State<SpatialBoard>
               fit: StackFit.expand,
               children: [
                 RepaintBoundary(
-                  child: CustomPaint(painter: CardPainter(controller) ),
+                  child: CustomPaint(painter: CardPainter(controller)),
                 ),
                 RepaintBoundary(
                   child: CustomPaint(painter: DynamicPainter(controller)),
