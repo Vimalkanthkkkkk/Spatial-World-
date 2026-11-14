@@ -18,40 +18,40 @@ class _SpatialBoardState extends State<SpatialBoard>
   double _lastScale = 1.0;
 
   Future<void> addCard() async {
-  final result = await showDialog<CardEditorResult>(
-    context: context,
-    builder: (_) => const CardEditorDialog(),
-  );
-  if (result == null || !mounted) return;
-  controller.addCard(
-    Offset(controller.screenWidth / 2, controller.screenHeight / 2),
-    title: result.title,
-    text: result.text,
-    deltaJson: result.deltaJson,
-    color: result.color,
-  );
-}
+    final result = await showDialog<CardEditorResult>(
+      context: context,
+      builder: (_) => const CardEditorDialog(),
+    );
+    if (result == null || !mounted) return;
+    controller.addCard(
+      Offset(controller.screenWidth / 2, controller.screenHeight / 2),
+      title: result.title,
+      text: result.text,
+      deltaJson: result.deltaJson,
+      color: result.color,
+    );
+  }
 
-Future<void> editCard(Item item) async {
-  final result = await showDialog<CardEditorResult>(
-    context: context,
-    builder: (_) => CardEditorDialog(
-      initialTitle: item.content.title ?? '',
-      initialText: item.content.text,
-      initialDeltaJson: controller.deltas[item.id],
-      initialColor: item.style.color,
-      confirmLabel: 'Save',
-    ),
-  );
-  if (result == null || !mounted) return;
-  controller.updateCard(
-    item,
-    title: result.title,
-    text: result.text,
-    deltaJson: result.deltaJson,
-    color: result.color,
-  );
-}
+  Future<void> editCard(Item item) async {
+    final result = await showDialog<CardEditorResult>(
+      context: context,
+      builder: (_) => CardEditorDialog(
+        initialTitle: item.content.title ?? '',
+        initialText: item.content.text,
+        initialDeltaJson: controller.deltas[item.id],
+        initialColor: item.style.color,
+        confirmLabel: 'Save',
+      ),
+    );
+    if (result == null || !mounted) return;
+    controller.updateCard(
+      item,
+      title: result.title,
+      text: result.text,
+      deltaJson: result.deltaJson,
+      color: result.color,
+    );
+  }
 
   @override
   void initState() {

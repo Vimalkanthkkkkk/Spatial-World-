@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:collection';
-
-import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
 
 typedef Content = ({String? title, String? text, Image? img});
