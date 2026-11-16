@@ -83,6 +83,15 @@ class Controller {
   final Map<String, ({int version, TextPainter title, TextPainter? body})>
   _text = {};
 
+  final List<String> order = [];
+  final Map<String, Item> _byId = {};
+  final ValueNotifier<int> navIndex = ValueNotifier(-1);
+  late AnimationController flyController;
+  Offset flyFromPan = Offset.zero;
+  Offset flyToPan = Offset.zero;
+  double flyFromZoom = 1;
+  double flyToZoom = 1;
+
   void panBy(Offset delta) => camera.value += delta * speed;
   void resetAutoScroll() => lastElapsed = Duration.zero;
 
@@ -180,6 +189,8 @@ class Controller {
     grid.putIfAbsent(_cellOf(world.dx, world.dy), () => []).add(item);
     if (item.size.width > _maxExtent) _maxExtent = item.size.width;
     if (item.size.height > _maxExtent) _maxExtent = item.size.height;
+    order.add(item.id);
+    _byId[item.id] = item;
     scene.value++;
     return item;
   }
@@ -207,21 +218,107 @@ class Controller {
       content: (title: title, text: text, img: old.content.img),
       version: old.version + 1,
     );
+    _byId[old.id] = cell[i];
     deltas[old.id] = deltaJson;
     scene.value++;
   }
 
-  void removeCard(Item item) {
+  void removeCard(String id) {
+    final item = _byId.remove(id);
+    if (item == null) return;
     final key = _cellOf(item.position.x, item.position.y);
     final cell = grid[key];
-    if (cell == null) return;
-    cell.removeWhere((i) => i.id == item.id);
-    if (cell.isEmpty) grid.remove(key);
-    final cached = _text.remove(item.id);
+    cell?.removeWhere((i) => i.id == id);
+    if (cell != null && cell.isEmpty) grid.remove(key);
+    final cached = _text.remove(id);
     cached?.title.dispose();
     cached?.body?.dispose();
-    deltas.remove(item.id);
+    deltas.remove(id);
+    final idx = order.indexOf(id);
+    if (idx >= 0) {
+      order.removeAt(idx);
+      if (idx < navIndex.value) {
+        navIndex.value = navIndex.value - 1;
+      } else if (idx == navIndex.value) {
+        navIndex.value = -1;
+      }
+    }
     scene.value++;
+  }
+
+  void attachFly(AnimationController c) {
+    flyController = c..addListener(_onFlyTick);
+  }
+
+  void stopFly() {
+    if (flyController.isAnimating) flyController.stop();
+  }
+
+  void _onFlyTick() {
+    final t = Curves.easeInOutCubic.transform(flyController.value);
+    camera.value = Offset.lerp(flyFromPan, flyToPan, t)!;
+    scale.value = ui.lerpDouble(flyFromZoom, flyToZoom, t)!;
+  }
+
+  void _flyTo(Offset pan, double zoom) {
+    flyFromPan = camera.value;
+    flyFromZoom = scale.value;
+    flyToPan = pan;
+    flyToZoom = zoom;
+    flyController.forward(from: 0);
+  }
+
+  bool get canGoOlder =>
+      order.isNotEmpty && (navIndex.value < 0 || navIndex.value > 0);
+  bool get canGoNewer =>
+      order.isNotEmpty && (navIndex.value < 0 || navIndex.value < order.length - 1);
+
+  void goOlder() {
+    if (order.isEmpty || heldItem != null) return;
+    final last = order.length - 1;
+    final i = navIndex.value;
+    _goToIndex(i < 0 ? last : (i > 0 ? i - 1 : 0));
+  }
+
+  void goNewer() {
+    if (order.isEmpty || heldItem != null) return;
+    final last = order.length - 1;
+    final i = navIndex.value;
+    _goToIndex(i < 0 ? last : (i < last ? i + 1 : last));
+  }
+
+  void _goToIndex(int index) {
+    final item = _byId[order[index]];
+    if (item == null) return;
+    navIndex.value = index;
+    final z = scale.value < 0.5 ? 0.5 : scale.value;
+    final center = Offset(
+      item.position.x + item.size.width / 2,
+      item.position.y + item.size.height / 2,
+    );
+    _flyTo(Offset(screenWidth / 2, screenHeight / 2) - center * z, z);
+  }
+
+  void showAll() {
+    if (_byId.isEmpty || heldItem != null) return;
+    var l = double.infinity, t = double.infinity;
+    var r = -double.infinity, b = -double.infinity;
+    for (final it in _byId.values) {
+      final x = it.position.x, y = it.position.y;
+      if (x < l) l = x;
+      if (y < t) t = y;
+      if (x + it.size.width > r) r = x + it.size.width;
+      if (y + it.size.height > b) b = y + it.size.height;
+    }
+    const pad = 60.0; 
+    final fitW = (screenWidth - pad * 2) / (r - l);
+    final fitH = (screenHeight - pad * 2) / (b - t);
+    var z = fitW < fitH ? fitW : fitH;
+    if (z > 1.0) z = 1.0; 
+    if (z < minZoom) z = minZoom; 
+    navIndex.value = -1;
+    final center = Offset((l + r) / 2, (t + b) / 2);
+    _flyTo(Offset(screenWidth / 2, screenHeight / 2) - center * z, z);
   }
 
   List<Item> visibleItems(ui.Size screen) {
@@ -320,6 +417,7 @@ class Controller {
   }
 
   void pointerDown(int pointer, Offset local, {required bool canPan}) {
+    stopFly();
     if (activePointer != null || heldItem != null) return;
     activePointer = pointer;
     _canPan = canPan;
@@ -404,6 +502,7 @@ class Controller {
       version: item.version,
     );
     grid.putIfAbsent(_cellOf(x, y), () => []).add(moved);
+    _byId[moved.id] = moved;
     heldItem = null;
     scene.value++;
     dragOffset.value = Offset.zero;
@@ -420,6 +519,7 @@ class Controller {
     dragOffset.dispose();
     camera.dispose();
     scene.dispose();
+    navIndex.dispose();
   }
 }
 

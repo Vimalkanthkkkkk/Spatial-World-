@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
@@ -41,6 +40,7 @@ class CardEditorDialog extends StatefulWidget {
     this.initialColor,
     this.confirmLabel = 'Add',
     this.startReadOnly = false,
+    this.onDelete,
   });
 
   final String initialTitle;
@@ -49,6 +49,7 @@ class CardEditorDialog extends StatefulWidget {
   final Color? initialColor;
   final String confirmLabel;
   final bool startReadOnly;
+  final VoidCallback? onDelete;
 
   @override
   State<CardEditorDialog> createState() => _CardEditorDialogState();
@@ -75,6 +76,39 @@ class _CardEditorDialogState extends State<CardEditorDialog> {
     Future.delayed(const Duration(milliseconds: 250), () {
       if (mounted && !_readOnly.value) _focus.requestFocus();
     });
+  }
+
+  Future<void> _confirmDelete() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Theme(
+        data: _darkTheme,
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF262626),
+          surfaceTintColor: Colors.transparent,
+          title: const Text('Delete this card?'),
+          content: const Text(
+            'This permanently deletes the card. This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('No'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFC62828),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Yes, delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (yes != true || !mounted) return;
+    Navigator.pop(context); 
+    widget.onDelete?.call(); 
   }
 
   Document _initialDocument() {
@@ -304,28 +338,35 @@ class _CardEditorDialogState extends State<CardEditorDialog> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  // Buttons
                   ValueListenableBuilder<bool>(
                     valueListenable: _readOnly,
                     builder: (context, ro, _) => Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: ro
-                          ? [
-                              FilledButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Close'),
-                              ),
-                            ]
-                          : [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Cancel'),
-                              ),
-                              const SizedBox(width: 8),
-                              FilledButton(
-                                onPressed: _save,
-                                child: Text(widget.confirmLabel),
-                              ),
-                            ],
+                      children: [
+                        if (widget.onDelete != null)
+                          TextButton.icon(
+                            onPressed: _confirmDelete,
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            label: const Text('Delete'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFEF5350),
+                            ),
+                          ),
+                        const Spacer(),
+                        if (ro)
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          )
+                        else ...[
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(onPressed: _save, child: Text(widget.confirmLabel)),
+                        ],
+                      ],
                     ),
                   ),
                 ],

@@ -1,7 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
 import 'package:spatial_world/widgets/card_editor_dialog.dart';
 
@@ -14,10 +13,10 @@ class SpatialBoard extends StatefulWidget {
 class _SpatialBoardState extends State<SpatialBoard>
     with TickerProviderStateMixin {
   late AnimationController _animationController;
+  late AnimationController _flyController;
   late final Ticker _autoScrollTicker;
   late Controller controller;
   double _lastScale = 1.0;
-  bool isCtrlPressed = false;
 
   Future<void> addCard() async {
     final result = await showDialog<CardEditorResult>(
@@ -43,7 +42,8 @@ class _SpatialBoardState extends State<SpatialBoard>
         initialDeltaJson: controller.deltas[item.id],
         initialColor: item.style.color,
         confirmLabel: 'Save',
-        startReadOnly: true, 
+        startReadOnly: true,
+        onDelete: () => controller.removeCard(item.id),
       ),
     );
     if (result == null || !mounted) return;
@@ -53,6 +53,50 @@ class _SpatialBoardState extends State<SpatialBoard>
       text: result.text,
       deltaJson: result.deltaJson,
       color: result.color,
+    );
+  }
+
+  Widget _navPill() {
+    return ListenableBuilder(
+      listenable: Listenable.merge([controller.scene, controller.navIndex]),
+      builder: (context, _) {
+        final total = controller.order.length;
+        if (total == 0) return const SizedBox.shrink();
+        final i = controller.navIndex.value;
+        return Material(
+          color: const Color(0xCC262626),
+          borderRadius: BorderRadius.circular(24),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Older card',
+                color: Colors.white,
+                disabledColor: Colors.white24,
+                icon: const Icon(Icons.chevron_left),
+                onPressed: controller.canGoOlder ? controller.goOlder : null,
+              ),
+              Text(
+                i < 0 ? '$total' : '${i + 1}/$total',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              IconButton(
+                tooltip: 'Newer card',
+                color: Colors.white,
+                disabledColor: Colors.white24,
+                icon: const Icon(Icons.chevron_right),
+                onPressed: controller.canGoNewer ? controller.goNewer : null,
+              ),
+              IconButton(
+                tooltip: 'Show all cards',
+                color: Colors.white,
+                icon: const Icon(Icons.fit_screen),
+                onPressed: controller.showAll,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -69,6 +113,11 @@ class _SpatialBoardState extends State<SpatialBoard>
     _autoScrollTicker = createTicker((elapsed) {
       controller.autoScrollTick(elapsed);
     });
+    _flyController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    controller.attachFly(_flyController);
     controller.scaleAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(
         parent: _animationController,
@@ -83,6 +132,7 @@ class _SpatialBoardState extends State<SpatialBoard>
     _animationController.dispose();
     controller.dispose();
     _autoScrollTicker.dispose();
+    _flyController.dispose();
     super.dispose();
   }
 
@@ -93,12 +143,6 @@ class _SpatialBoardState extends State<SpatialBoard>
         kind == PointerDeviceKind.touch ||
         kind == PointerDeviceKind.stylus ||
         kind == PointerDeviceKind.invertedStylus;
-    isCtrlPressed = HardwareKeyboard.instance.isControlPressed;
-    if (isCtrlPressed) {
-      debugPrint('Pointer down while Control is pressed');
-    } else {
-      debugPrint('Normal pointer down');
-    }
     controller.pointerDown(event.pointer, event.localPosition, canPan: canPan);
     if (controller.activePointer == event.pointer &&
         !_autoScrollTicker.isActive) {
@@ -108,15 +152,10 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerMove(PointerMoveEvent event) {
-    if (isCtrlPressed = HardwareKeyboard.instance.isControlPressed) {
-      debugPrint('Pointer down while Control is pressed');
-    }
     controller.pointerMove(event.pointer, event.localPosition, event.delta);
   }
 
   void _onPointerEnd(PointerEvent event) {
-    debugPrint("ff");
-    isCtrlPressed = false;
     controller.pointerEnd(event.pointer, isUp: event is PointerUpEvent);
     if (controller.activePointer == null && _autoScrollTicker.isActive) {
       _autoScrollTicker.stop();
@@ -126,6 +165,7 @@ class _SpatialBoardState extends State<SpatialBoard>
   void _onPanZoomStart(PointerPanZoomStartEvent e) => _lastScale = 1.0;
 
   void _onPanZoomUpdate(PointerPanZoomUpdateEvent e) {
+    controller.stopFly();
     controller.panBy(e.panDelta);
     final factor = e.scale / _lastScale;
     _lastScale = e.scale;
@@ -133,6 +173,7 @@ class _SpatialBoardState extends State<SpatialBoard>
   }
 
   void _onPointerSignal(PointerSignalEvent event) {
+    controller.stopFly();
     if (event is PointerScaleEvent) {
       controller.zoomAt(event.scale, event.localPosition);
     }
@@ -143,39 +184,45 @@ class _SpatialBoardState extends State<SpatialBoard>
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: _onPointerDown,
-      onPointerMove: _onPointerMove,
-      onPointerUp: _onPointerEnd,
-      onPointerCancel: _onPointerEnd,
-      onPointerPanZoomUpdate: _onPanZoomUpdate,
-      onPointerSignal: _onPointerSignal,
-      onPointerPanZoomStart: _onPanZoomStart,
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        body: LayoutBuilder(
-          builder: (context, constraints) {
-            controller.screenWidth = constraints.maxWidth;
-            controller.screenHeight = constraints.maxHeight;
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                RepaintBoundary(
-                  child: CustomPaint(painter: CardPainter(controller)),
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          controller.screenWidth = constraints.maxWidth;
+          controller.screenHeight = constraints.maxHeight;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Listener(
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: _onPointerDown,
+                  onPointerMove: _onPointerMove,
+                  onPointerUp: _onPointerEnd,
+                  onPointerCancel: _onPointerEnd,
+                  onPointerPanZoomUpdate: _onPanZoomUpdate,
+                  onPointerSignal: _onPointerSignal,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      RepaintBoundary(
+                        child: CustomPaint(painter: CardPainter(controller)),
+                      ),
+                      RepaintBoundary(
+                        child: CustomPaint(painter: DynamicPainter(controller)),
+                      ),
+                    ],
+                  ),
                 ),
-                RepaintBoundary(
-                  child: CustomPaint(painter: DynamicPainter(controller)),
-                ),
-              ],
-            );
-          },
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: addCard,
-          tooltip: 'Add',
-          child: const Icon(Icons.add),
-        ),
+              ),
+              Positioned(left: 16, bottom: 16, child: _navPill()),
+            ],
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: addCard,
+        tooltip: 'Add',
+        child: const Icon(Icons.add),
       ),
     );
   }
