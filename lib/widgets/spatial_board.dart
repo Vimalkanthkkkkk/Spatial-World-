@@ -201,6 +201,7 @@ class _SpatialBoardState extends State<SpatialBoard>
                   onPointerCancel: _onPointerEnd,
                   onPointerPanZoomUpdate: _onPanZoomUpdate,
                   onPointerSignal: _onPointerSignal,
+                  onPointerPanZoomStart: _onPanZoomStart,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
