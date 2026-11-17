@@ -1,8 +1,14 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:collection';
-
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
+
+enum SeedLayout {
+  uniform,   
+  grid,     
+  clustered,
+}
 
 typedef Content = ({String? title, String? text, Image? img});
 typedef Style = ({Color color, Radius radius});
@@ -22,6 +28,8 @@ typedef Item = ({
   Content content,
   int version,
 });
+
+
 
 void paintCardText(Controller c, Canvas canvas, Item item, Rect rect) {
   final t = c.textFor(item);
@@ -91,6 +99,84 @@ class Controller {
   Offset flyToPan = Offset.zero;
   double flyFromZoom = 1;
   double flyToZoom = 1;
+
+  void seedCards(
+    int count, {
+    SeedLayout layout = SeedLayout.uniform,
+    int seed = 42,
+    double spacing = 420, 
+    bool mixedSizes = false, 
+    int clusters = 8, 
+  }) {
+    final watch = Stopwatch()..start();
+    final rnd = math.Random(seed);
+    final side = math.sqrt(count) * spacing;
+    final cols = math.sqrt(count).ceil();
+    final sigma = side * 0.03;
+    final centers = layout == SeedLayout.clustered
+        ? List.generate(
+            clusters,
+            (_) => Offset(rnd.nextDouble() * side, rnd.nextDouble() * side),
+          )
+        : const <Offset>[];
+    const colors = [
+      Color(0xFF2B2B2B),
+      Color(0xFF3B3F46),
+      Color(0xFF1E3A5F),
+      Color(0xFF14532D),
+      Color(0xFF5B2333),
+      Color(0xFF4A3B1B),
+      Color(0xFF3B2A5C),
+      Color(0xFF0F4C5C),
+    ];
+    const body =
+        'Generated card. This body text is long enough to wrap onto several '
+        'lines and to exercise the ellipsis path of the card layout.';
+    for (var i = 0; i < count; i++) {
+      double x, y;
+      if (layout == SeedLayout.uniform) {
+        x = rnd.nextDouble() * side;
+        y = rnd.nextDouble() * side;
+      } else if (layout == SeedLayout.grid) {
+        x = (i % cols) * spacing;
+        y = (i ~/ cols) * spacing;
+      } else {
+        final c = centers[rnd.nextInt(centers.length)];
+        x = c.dx + _gauss(rnd) * sigma;
+        y = c.dy + _gauss(rnd) * sigma;
+      }
+      final w = mixedSizes ? 160 + rnd.nextDouble() * 160 : cardWidth;
+      final h = mixedSizes ? 100 + rnd.nextDouble() * 120 : cardHeight;
+      final id = _nextId++;
+      final Item item = (
+        id: 'item_$id',
+        type: 'CARD',
+        position: (x: x, y: y),
+        size: (width: w, height: h),
+        zOrder: id,
+        parentId: 0,
+        style: (
+          color: colors[rnd.nextInt(colors.length)],
+          radius: const Radius.circular(14),
+        ),
+        content: (title: 'Card ${id + 1}', text: body, img: null),
+        version: 1,
+      );
+      grid.putIfAbsent(_cellOf(x, y), () => []).add(item);
+      order.add(item.id);
+      _byId[item.id] = item;
+      if (w > _maxExtent) _maxExtent = w;
+      if (h > _maxExtent) _maxExtent = h;
+    }
+    scene.value++; 
+    debugPrint('Seeded $count cards ($layout) in ${watch.elapsedMilliseconds} ms');
+  }
+
+  double _gauss(math.Random r) {
+    final u1 = 1 - r.nextDouble();
+    final u2 = r.nextDouble();
+    return math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2);
+  }
 
   void panBy(Offset delta) => camera.value += delta * speed;
   void resetAutoScroll() => lastElapsed = Duration.zero;

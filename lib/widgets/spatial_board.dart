@@ -4,6 +4,11 @@ import 'package:flutter/scheduler.dart';
 import 'package:spatial_world/widgets/split_layer.dart';
 import 'package:spatial_world/widgets/card_editor_dialog.dart';
 
+const int _seedCount = int.fromEnvironment('SEED', defaultValue: 0);
+const String _seedLayout = String.fromEnvironment('SEED_LAYOUT', defaultValue: 'uniform');
+const bool _seedMixed = bool.fromEnvironment('SEED_MIXED');
+
+
 class SpatialBoard extends StatefulWidget {
   const SpatialBoard({super.key});
   @override
@@ -118,6 +123,16 @@ class _SpatialBoardState extends State<SpatialBoard>
       duration: const Duration(milliseconds: 450),
     );
     controller.attachFly(_flyController);
+    if (_seedCount > 0) {
+      controller.seedCards(
+        _seedCount,
+        layout: SeedLayout.values.byName(_seedLayout),
+        mixedSizes: _seedMixed,
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) controller.showAll();
+      });
+    }
     controller.scaleAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(
         parent: _animationController,
